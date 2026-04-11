@@ -1,7 +1,7 @@
 package kr.io.pacer.core.service;
 
-import kr.io.pacer.core.dto.AccessTokenDto;
-import kr.io.pacer.core.dto.GoogleProfileDto;
+import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
+import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;

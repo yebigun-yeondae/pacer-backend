@@ -1,4 +1,4 @@
-package kr.io.pacer.core.dto;
+package kr.io.pacer.core.dto.oauth2;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
