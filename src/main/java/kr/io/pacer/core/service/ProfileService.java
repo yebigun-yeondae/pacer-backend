@@ -22,11 +22,11 @@ public class ProfileService {
     private final PedestrianProfileRepository profileRepository;
 
     public ProfileResponse getProfile(UUID userId) {
-        log.debug("[Profile] 프로필 조회 | userId={}", userId);
+        log.info("[Profile] 프로필 조회 | userId={}", userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("유저 없음"));
         PedestrianProfile profile = profileRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalStateException("프로파일 없음"));
+                .orElseThrow(() -> new IllegalStateException("프로필 없음"));
 
         return ProfileResponse.builder()
                 .nickname(user.getNickname())

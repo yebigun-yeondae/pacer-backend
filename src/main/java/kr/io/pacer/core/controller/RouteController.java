@@ -25,6 +25,6 @@ public class RouteController {
 
         UUID userId = (UUID) authentication.getPrincipal();
 
-        return ResponseEntity.ok(routeService.findRouteWithCache(request, userId));
+        return ResponseEntity.ok(routeService.findRoute(request, userId));
     }
 }

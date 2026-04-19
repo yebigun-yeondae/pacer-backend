@@ -6,7 +6,10 @@ import kr.io.pacer.core.dto.request.RouteRequest;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.PrecisionModel;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -47,11 +50,15 @@ public class RouteHistory {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    private static final GeometryFactory GF = new GeometryFactory(new PrecisionModel(), 4326);
+
     public static RouteHistory of(User user, RouteRequest req,
                                   String polyline, int timeSec,
                                   double distM, int signalStops) {
         RouteHistory h = new RouteHistory();
         h.user            = user;
+        h.originGeom      = GF.createPoint(new Coordinate(req.getOrigin().getLng(), req.getOrigin().getLat()));
+        h.destinationGeom = GF.createPoint(new Coordinate(req.getDestination().getLng(), req.getDestination().getLat()));
         h.originName      = req.getOriginName();
         h.destinationName = req.getDestinationName();
         h.encodedPolyline = polyline;

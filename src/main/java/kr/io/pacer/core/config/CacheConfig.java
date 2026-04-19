@@ -1,5 +1,6 @@
 package kr.io.pacer.core.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,13 @@ public class CacheConfig {
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory,
                                           ObjectMapper objectMapper) {
+        ObjectMapper cacheMapper = objectMapper.copy()
+                .activateDefaultTyping(
+                        objectMapper.getPolymorphicTypeValidator(),
+                        ObjectMapper.DefaultTyping.NON_FINAL,
+                        JsonTypeInfo.As.PROPERTY
+                );
+
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(5))
                 .disableCachingNullValues()
@@ -28,7 +36,7 @@ public class CacheConfig {
                                 .fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(
                         RedisSerializationContext.SerializationPair
-                                .fromSerializer(new GenericJackson2JsonRedisSerializer(objectMapper)));
+                                .fromSerializer(new GenericJackson2JsonRedisSerializer(cacheMapper)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)

@@ -38,10 +38,6 @@ public class RouteService {
             value = "routes",
             key   = "#userId + ':' + #req.origin.lat + ':' + #req.origin.lng + ':' + #req.destination.lat + ':' + #req.destination.lng"
     )
-    public RouteResponse findRouteWithCache(RouteRequest req, UUID userId) {
-        return findRoute(req, userId);
-    }
-
     @Transactional
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
         log.info("[Route] 경로 탐색 시작 | userId={} origin=({},{}) dest=({},{})",
@@ -130,11 +126,4 @@ public class RouteService {
         return RecommendedPace.NORMAL;
     }
 
-    private String buildCacheKey(RouteRequest req, UUID userId) {
-        return "route:%s:%.4f:%.4f:%.4f:%.4f".formatted(
-                userId,
-                req.getOrigin().getLat(), req.getOrigin().getLng(),
-                req.getDestination().getLat(), req.getDestination().getLng()
-        );
-    }
 }

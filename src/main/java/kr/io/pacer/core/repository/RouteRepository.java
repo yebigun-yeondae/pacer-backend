@@ -71,6 +71,10 @@ public class RouteRepository {
     public long findNearestNode(double lat, double lng) {
         String sql = """
             SELECT id FROM road_nodes
+            WHERE component = (
+                SELECT component FROM road_nodes
+                GROUP BY component ORDER BY COUNT(*) DESC LIMIT 1
+            )
             ORDER BY geom <-> ST_SetSRID(ST_Point(?, ?), 4326)
             LIMIT 1
             """;
