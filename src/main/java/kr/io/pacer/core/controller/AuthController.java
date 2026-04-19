@@ -27,8 +27,7 @@ public class AuthController {
     public ResponseEntity<TokenResponse> kakaoLogin(
             @RequestBody @Valid KakaoLoginRequest request) {
 
-        AccessTokenDto accessToken = kakaoAuthService.getAccessToken(request.getCode());
-        KakaoProfileDto profile = kakaoAuthService.getProfile(accessToken.getAccessToken());
+        KakaoProfileDto profile = kakaoAuthService.getProfile(request.getAccessToken());
         return ResponseEntity.ok(authService.loginWithKakao(profile));
     }
 
@@ -36,7 +35,7 @@ public class AuthController {
     public ResponseEntity<TokenResponse> googleLogin(
             @RequestBody @Valid GoogleLoginRequest request) {
 
-        AccessTokenDto accessToken = googleAuthService.getAccessToken(request.getCode());
+        AccessTokenDto accessToken = googleAuthService.getAccessToken(request.getAccessToken());
         GoogleProfileDto profile = googleAuthService.getProfile(accessToken.getAccessToken());
         return ResponseEntity.ok(authService.loginWithGoogle(profile));
     }
