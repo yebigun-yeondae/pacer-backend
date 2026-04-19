@@ -2,56 +2,51 @@ package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 @Service
+@RequiredArgsConstructor
 public class KakaoAuthService {
+
     @Value("${oauth.kakao.client-id}")
-    private String kakaoClientId;
+    private String clientId;
 
     @Value("${oauth.kakao.client-secret}")
-    private String kakaoClientSecret;
+    private String clientSecret;
 
     @Value("${oauth.kakao.redirect-uri}")
-    private String kakaoRedirectUri;
+    private String redirectUri;
 
     public AccessTokenDto getAccessToken(String code) {
-        RestClient restClient = RestClient.create();
-
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("code", code);
-        params.add("client_id", kakaoClientId);
-        params.add("client_secret", kakaoClientSecret);
-        params.add("redirect_uri", kakaoRedirectUri);
-        params.add("grant_type", "authorization_code");
+        params.add("code",          code);
+        params.add("client_id",     clientId);
+        params.add("client_secret", clientSecret);
+        params.add("redirect_uri",  redirectUri);
+        params.add("grant_type",    "authorization_code");
 
-        ResponseEntity<AccessTokenDto> response = restClient.post()
+        return RestClient.create()
+                .post()
                 .uri("https://kauth.kakao.com/oauth/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(params)
                 .retrieve()
-                .toEntity(AccessTokenDto.class);
-
-        System.out.println("응답 accesstoken JSON " + response.getBody());
-        return response.getBody();
+                .toEntity(AccessTokenDto.class)
+                .getBody();
     }
 
-    public KakaoProfileDto getKakaoProfile(String token){
-        RestClient restClient = RestClient.create();
-
-        ResponseEntity<KakaoProfileDto> response = restClient.get()
+    public KakaoProfileDto getProfile(String accessToken) {
+        return RestClient.create()
+                .get()
                 .uri("https://kapi.kakao.com/v2/user/me")
-                .header("Authorization", "Bearer " + token)
+                .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .toEntity(KakaoProfileDto.class);
-
-        System.out.println("profile JSON " + response.getBody());
-
-        return response.getBody();
+                .toEntity(KakaoProfileDto.class)
+                .getBody();
     }
 }

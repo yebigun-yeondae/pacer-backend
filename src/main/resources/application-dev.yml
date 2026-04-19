@@ -16,3 +16,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_EXTERNAL_PORT}
+      timeout: 3000ms

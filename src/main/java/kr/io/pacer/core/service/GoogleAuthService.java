@@ -2,56 +2,51 @@ package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 @Service
+@RequiredArgsConstructor
 public class GoogleAuthService {
+
     @Value("${oauth.google.client-id}")
-    private String googleClientId;
+    private String clientId;
 
     @Value("${oauth.google.client-secret}")
-    private String googleClientSecret;
+    private String clientSecret;
 
     @Value("${oauth.google.redirect-uri}")
-    private String googleRedirectUri;
+    private String redirectUri;
 
     public AccessTokenDto getAccessToken(String code) {
-        RestClient restClient = RestClient.create();
-
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("code", code);
-        params.add("client_id", googleClientId);
-        params.add("client_secret", googleClientSecret);
-        params.add("redirect_uri", googleRedirectUri);
-        params.add("grant_type", "authorization_code");
+        params.add("code",          code);
+        params.add("client_id",     clientId);
+        params.add("client_secret", clientSecret);
+        params.add("redirect_uri",  redirectUri);
+        params.add("grant_type",    "authorization_code");
 
-        ResponseEntity<AccessTokenDto> response = restClient.post()
+        return RestClient.create()
+                .post()
                 .uri("https://oauth2.googleapis.com/token")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(params)
                 .retrieve()
-                .toEntity(AccessTokenDto.class);
-
-        System.out.println("응답 accesstoken JSON " + response.getBody());
-        return response.getBody();
+                .toEntity(AccessTokenDto.class)
+                .getBody();
     }
 
-    public GoogleProfileDto getGoogleProfile(String token){
-        RestClient restClient = RestClient.create();
-
-        ResponseEntity<GoogleProfileDto> response = restClient.get()
-                .uri("https://openidconnect.googleapis.com/v1/userinfo")
-                .header("Authorization", "Bearer " + token)
+    public GoogleProfileDto getProfile(String accessToken) {
+        return RestClient.create()
+                .get()
+                .uri("https://www.googleapis.com/oauth2/v3/userinfo")
+                .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
-                .toEntity(GoogleProfileDto.class);
-
-        System.out.println("profile JSON " + response.getBody());
-
-        return response.getBody();
+                .toEntity(GoogleProfileDto.class)
+                .getBody();
     }
 }

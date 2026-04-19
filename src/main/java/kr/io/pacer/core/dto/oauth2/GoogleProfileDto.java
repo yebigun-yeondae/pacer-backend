@@ -1,16 +1,17 @@
 package kr.io.pacer.core.dto.oauth2;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Data
+@Getter
 @NoArgsConstructor
-@AllArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class GoogleProfileDto {
+
     private String sub;
+    private String name;
     private String email;
-    private String picture;
+
+    @JsonProperty("picture")
+    private String profileImageUrl;
 }
