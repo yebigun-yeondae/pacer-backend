@@ -7,11 +7,13 @@ import kr.io.pacer.core.dto.response.ProfileResponse;
 import kr.io.pacer.core.repository.PedestrianProfileRepository;
 import kr.io.pacer.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProfileService {
@@ -20,6 +22,7 @@ public class ProfileService {
     private final PedestrianProfileRepository profileRepository;
 
     public ProfileResponse getProfile(UUID userId) {
+        log.debug("[Profile] 프로필 조회 | userId={}", userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("유저 없음"));
         PedestrianProfile profile = profileRepository.findByUserId(userId)
@@ -49,5 +52,6 @@ public class ProfileService {
                 .orElse(1.4);
 
         profile.updateSpeed(avgMeasured);
+        log.info("[Profile] 보행속도 업데이트 | userId={} newSpeed={}m/s", userId, avgMeasured);
     }
 }

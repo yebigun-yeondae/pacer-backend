@@ -12,6 +12,7 @@ import kr.io.pacer.core.exception.RouteNotFoundException;
 import kr.io.pacer.core.repository.*;
 import kr.io.pacer.core.util.PolylineEncoder;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RouteService {
@@ -42,6 +44,11 @@ public class RouteService {
 
     @Transactional
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
+        log.info("[Route] 경로 탐색 시작 | userId={} origin=({},{}) dest=({},{})",
+                userId,
+                req.getOrigin().getLat(), req.getOrigin().getLng(),
+                req.getDestination().getLat(), req.getDestination().getLng());
+
         double userSpeed = profileRepository.findByUserId(userId)
                 .map(p -> p.getAvgSpeedMps())
                 .orElse(1.4);
@@ -57,6 +64,7 @@ public class RouteService {
                 routeRepository.findRoute(startNode, endNode, userSpeed, nowEpochSec);
 
         if (segments.isEmpty()) {
+            log.warn("[Route] 경로 없음 | userId={} startNode={} endNode={}", userId, startNode, endNode);
             throw new RouteNotFoundException("경로를 찾을 수 없습니다.");
         }
 
@@ -82,6 +90,8 @@ public class RouteService {
         profileRepository.findByUserId(userId)
                 .ifPresent(p -> p.recordRoute(totalDistance));
 
+        log.info("[Route] 경로 탐색 완료 | userId={} distance={}m time={}s signals={}",
+                userId, (int) totalDistance, totalTime, signalStops);
         return response;
     }
 
