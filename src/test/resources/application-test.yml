@@ -1,0 +1,26 @@
+spring:
+  config:
+    activate:
+      on-profile: test
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+jwt:
+  secret: test-secret-key-minimum-32-bytes-long!!
+  access-token-expire-ms: 3600000
+  refresh-token-expire-ms: 1209600000
+
+oauth:
+  google:
+    client-id: test-google-client-id
+    client-secret: test-google-secret
+    redirect-uri: http://localhost:3000/callback
+  kakao:
+    client-id: test-kakao-client-id
+    client-secret: test-kakao-secret
+    redirect-uri: http://localhost:3000/callback

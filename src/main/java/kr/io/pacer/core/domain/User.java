@@ -21,8 +21,13 @@ public class User {
     private UUID id;
 
     private String nickname;
+
+    @Column(unique = true)
     private String email;
+
     private String profileImageUrl;
+
+    private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -44,6 +49,14 @@ public class User {
         user.nickname = nickname;
         user.email = email;
         user.profileImageUrl = profileImageUrl;
+        return user;
+    }
+
+    public static User ofLocal(String nickname, String email, String encodedPassword) {
+        User user = new User();
+        user.nickname = nickname;
+        user.email = email;
+        user.password = encodedPassword;
         return user;
     }
 }

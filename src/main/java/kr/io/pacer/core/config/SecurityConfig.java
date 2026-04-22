@@ -40,7 +40,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth->auth
                         .requestMatchers(
                                 "/api/v1/auth/google",
-                                "/api/v1/auth/kakao"
+                                "/api/v1/auth/kakao",
+                                "/api/v1/auth/reissue",
+                                "/api/v1/auth/logout"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
