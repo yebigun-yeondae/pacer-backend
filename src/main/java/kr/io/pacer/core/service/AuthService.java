@@ -8,7 +8,11 @@ import kr.io.pacer.core.domain.UserOAuthAccount;
 import kr.io.pacer.core.domain.enums.OAuthProvider;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
+import kr.io.pacer.core.dto.request.LoginRequest;
+import kr.io.pacer.core.dto.request.SignupRequest;
 import kr.io.pacer.core.dto.response.TokenResponse;
+import kr.io.pacer.core.exception.DuplicateEmailException;
+import kr.io.pacer.core.exception.InvalidCredentialsException;
 import kr.io.pacer.core.exception.InvalidTokenException;
 import kr.io.pacer.core.repository.PedestrianProfileRepository;
 import kr.io.pacer.core.repository.RefreshTokenRepository;
@@ -16,6 +20,7 @@ import kr.io.pacer.core.repository.UserOAuthAccountRepository;
 import kr.io.pacer.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +36,35 @@ public class AuthService {
     private final PedestrianProfileRepository profileRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProvider jwtProvider;
+    private final PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public TokenResponse signup(SignupRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            log.warn("[Auth] 회원가입 실패 - 이미 존재하는 이메일 | email={}", request.getEmail());
+            throw new DuplicateEmailException("이미 사용 중인 이메일입니다.");
+        }
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+        User user = userRepository.save(User.ofLocal(request.getNickname(), request.getEmail(), encodedPassword));
+        profileRepository.save(PedestrianProfile.createDefault(user));
+        log.info("[Auth] 회원가입 완료 | userId={}", user.getId());
+        return issueToken(user);
+    }
+
+    @Transactional
+    public TokenResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> {
+                    log.warn("[Auth] 로그인 실패 - 존재하지 않는 이메일 | email={}", request.getEmail());
+                    return new InvalidCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다.");
+                });
+        if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("[Auth] 로그인 실패 - 비밀번호 불일치 | userId={}", user.getId());
+            throw new InvalidCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다.");
+        }
+        log.info("[Auth] 로그인 완료 | userId={}", user.getId());
+        return issueToken(user);
+    }
 
     @Transactional
     public TokenResponse loginWithKakao(KakaoProfileDto dto) {

@@ -75,6 +75,108 @@ class AuthIntegrationTest {
     @MockBean KakaoAuthService kakaoAuthService;
     @MockBean GoogleAuthService googleAuthService;
 
+    // ── 일반 회원가입 / 로그인 ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("일반 회원가입 → 토큰 발급")
+    void signup_newUser_returns201AndTokens() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"signup@integration.test\",\"password\":\"password1!\",\"nickname\":\"통합테스터\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("동일 이메일 중복 회원가입 → 409")
+    void signup_duplicateEmail_returns409() throws Exception {
+        String body = "{\"email\":\"dup@integration.test\",\"password\":\"password1!\",\"nickname\":\"중복유저\"}";
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"));
+    }
+
+    @Test
+    @DisplayName("회원가입 → 로그인 → 재발급 → 로그아웃 전체 흐름")
+    void signupLoginReissueLogout_fullFlow() throws Exception {
+        String email = "flow@integration.test";
+        String password = "password1!";
+
+        // 1. 회원가입
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"nickname\":\"흐름유저\"}"))
+                .andExpect(status().isCreated());
+
+        // 2. 로그인 → 토큰 수령
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andReturn();
+
+        TokenResponse tokens = objectMapper.readValue(
+                loginResult.getResponse().getContentAsString(), TokenResponse.class);
+
+        // 3. 토큰 재발급
+        MvcResult reissueResult = mockMvc.perform(post("/api/v1/auth/reissue")
+                        .header("Refresh-Token", tokens.getRefreshToken()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        TokenResponse newTokens = objectMapper.readValue(
+                reissueResult.getResponse().getContentAsString(), TokenResponse.class);
+
+        // 4. 로그아웃
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .header("Refresh-Token", newTokens.getRefreshToken()))
+                .andExpect(status().isNoContent());
+
+        // 5. 로그아웃 후 동일 Refresh Token 재사용 → 401
+        mockMvc.perform(post("/api/v1/auth/reissue")
+                        .header("Refresh-Token", newTokens.getRefreshToken()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    @DisplayName("로그인 - 잘못된 비밀번호 → 401")
+    void login_wrongPassword_returns401() throws Exception {
+        // 먼저 회원가입
+        mockMvc.perform(post("/api/v1/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"wrongpw@integration.test\",\"password\":\"password1!\",\"nickname\":\"테스터\"}"))
+                .andExpect(status().isCreated());
+
+        // 잘못된 비밀번호로 로그인 시도
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"wrongpw@integration.test\",\"password\":\"wrongpassword\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    @DisplayName("로그인 - 존재하지 않는 이메일 → 401")
+    void login_unknownEmail_returns401() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ghost@integration.test\",\"password\":\"password1!\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
     // ── 카카오 로그인 → 재발급 → 로그아웃 ────────────────────────────────────
 
     @Test

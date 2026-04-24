@@ -6,11 +6,14 @@ import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.request.GoogleLoginRequest;
 import kr.io.pacer.core.dto.request.KakaoLoginRequest;
+import kr.io.pacer.core.dto.request.LoginRequest;
+import kr.io.pacer.core.dto.request.SignupRequest;
 import kr.io.pacer.core.dto.response.TokenResponse;
 import kr.io.pacer.core.service.AuthService;
 import kr.io.pacer.core.service.GoogleAuthService;
 import kr.io.pacer.core.service.KakaoAuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +25,18 @@ public class AuthController {
     private final KakaoAuthService kakaoAuthService;
     private final GoogleAuthService googleAuthService;
     private final AuthService authService;
+
+    @PostMapping("/signup") // 일반 회원가입
+    public ResponseEntity<TokenResponse> signup(
+            @RequestBody @Valid SignupRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request));
+    }
+
+    @PostMapping("/login") // 일반 로그인
+    public ResponseEntity<TokenResponse> login(
+            @RequestBody @Valid LoginRequest request) {
+        return ResponseEntity.ok(authService.login(request));
+    }
 
     @PostMapping("/kakao") // 카카오 로그인
     public ResponseEntity<TokenResponse> kakaoLogin(

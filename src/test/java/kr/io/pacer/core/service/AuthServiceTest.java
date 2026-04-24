@@ -5,7 +5,11 @@ import kr.io.pacer.core.domain.*;
 import kr.io.pacer.core.domain.enums.OAuthProvider;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
+import kr.io.pacer.core.dto.request.LoginRequest;
+import kr.io.pacer.core.dto.request.SignupRequest;
 import kr.io.pacer.core.dto.response.TokenResponse;
+import kr.io.pacer.core.exception.DuplicateEmailException;
+import kr.io.pacer.core.exception.InvalidCredentialsException;
 import kr.io.pacer.core.exception.InvalidTokenException;
 import kr.io.pacer.core.repository.*;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -33,6 +38,95 @@ class AuthServiceTest {
     @Mock PedestrianProfileRepository profileRepository;
     @Mock RefreshTokenRepository refreshTokenRepository;
     @Mock JwtProvider jwtProvider;
+    @Mock PasswordEncoder passwordEncoder;
+
+    // ── 일반 회원가입 ──────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("회원가입 - 신규 이메일: User·Profile 저장 후 토큰 발급")
+    void signup_newEmail_savesUserAndReturnsTokens() {
+        SignupRequest request = makeSignupRequest("new@test.com", "password1!", "테스터");
+        User savedUser = User.ofLocal("테스터", "new@test.com", "encoded");
+
+        given(userRepository.existsByEmail("new@test.com")).willReturn(false);
+        given(passwordEncoder.encode("password1!")).willReturn("encoded");
+        given(userRepository.save(any())).willReturn(savedUser);
+        given(profileRepository.save(any())).willReturn(mock(PedestrianProfile.class));
+        given(jwtProvider.createAccessToken(any(), any())).willReturn("access");
+        given(jwtProvider.createRefreshToken(any())).willReturn("refresh");
+
+        TokenResponse result = authService.signup(request);
+
+        assertThat(result.getAccessToken()).isEqualTo("access");
+        assertThat(result.getRefreshToken()).isEqualTo("refresh");
+        then(userRepository).should().save(any());
+        then(profileRepository).should().save(any());
+    }
+
+    @Test
+    @DisplayName("회원가입 - 중복 이메일: DuplicateEmailException")
+    void signup_duplicateEmail_throwsDuplicateEmailException() {
+        SignupRequest request = makeSignupRequest("dup@test.com", "password1!", "중복유저");
+        given(userRepository.existsByEmail("dup@test.com")).willReturn(true);
+
+        assertThatThrownBy(() -> authService.signup(request))
+                .isInstanceOf(DuplicateEmailException.class);
+        then(userRepository).should(never()).save(any());
+    }
+
+    // ── 일반 로그인 ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("로그인 - 올바른 이메일·비밀번호: 토큰 발급")
+    void login_validCredentials_returnsTokens() {
+        LoginRequest request = makeLoginRequest("user@test.com", "password1!");
+        User user = User.ofLocal("유저", "user@test.com", "encoded");
+
+        given(userRepository.findByEmail("user@test.com")).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("password1!", "encoded")).willReturn(true);
+        given(jwtProvider.createAccessToken(any(), any())).willReturn("access");
+        given(jwtProvider.createRefreshToken(any())).willReturn("refresh");
+
+        TokenResponse result = authService.login(request);
+
+        assertThat(result.getAccessToken()).isEqualTo("access");
+        assertThat(result.getRefreshToken()).isEqualTo("refresh");
+    }
+
+    @Test
+    @DisplayName("로그인 - 존재하지 않는 이메일: InvalidCredentialsException")
+    void login_unknownEmail_throwsInvalidCredentialsException() {
+        LoginRequest request = makeLoginRequest("ghost@test.com", "password1!");
+        given(userRepository.findByEmail("ghost@test.com")).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    @DisplayName("로그인 - 비밀번호 불일치: InvalidCredentialsException")
+    void login_wrongPassword_throwsInvalidCredentialsException() {
+        LoginRequest request = makeLoginRequest("user@test.com", "wrongpw");
+        User user = User.ofLocal("유저", "user@test.com", "encoded");
+
+        given(userRepository.findByEmail("user@test.com")).willReturn(Optional.of(user));
+        given(passwordEncoder.matches("wrongpw", "encoded")).willReturn(false);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
+    @DisplayName("로그인 - OAuth 전용 유저(비밀번호 없음): InvalidCredentialsException")
+    void login_oauthOnlyUser_throwsInvalidCredentialsException() {
+        LoginRequest request = makeLoginRequest("oauth@test.com", "password1!");
+        User oauthUser = User.of("OAuth유저", "oauth@test.com", null); // password == null
+
+        given(userRepository.findByEmail("oauth@test.com")).willReturn(Optional.of(oauthUser));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(InvalidCredentialsException.class);
+    }
 
     // ── 카카오 로그인 ──────────────────────────────────────────────────────────
 
@@ -178,6 +272,21 @@ class AuthServiceTest {
     }
 
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────
+
+    private SignupRequest makeSignupRequest(String email, String password, String nickname) {
+        SignupRequest req = new SignupRequest();
+        ReflectionTestUtils.setField(req, "email", email);
+        ReflectionTestUtils.setField(req, "password", password);
+        ReflectionTestUtils.setField(req, "nickname", nickname);
+        return req;
+    }
+
+    private LoginRequest makeLoginRequest(String email, String password) {
+        LoginRequest req = new LoginRequest();
+        ReflectionTestUtils.setField(req, "email", email);
+        ReflectionTestUtils.setField(req, "password", password);
+        return req;
+    }
 
     private KakaoProfileDto makeKakaoProfile(long id, String nickname, String email, String imageUrl) {
         KakaoProfileDto dto = new KakaoProfileDto();
