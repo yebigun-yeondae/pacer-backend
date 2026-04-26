@@ -1,10 +1,12 @@
 package kr.io.pacer.core.service;
 
+import kr.io.pacer.core.client.CitsSpatClient;
 import kr.io.pacer.core.domain.RouteHistory;
 import kr.io.pacer.core.domain.TrafficSignal;
 import kr.io.pacer.core.domain.User;
 import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
+import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.internal.RouteSegment;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteResponse;
@@ -14,6 +16,7 @@ import kr.io.pacer.core.util.PolylineEncoder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -29,10 +33,13 @@ public class RouteService {
 
     private final RouteRepository             routeRepository;
     private final TrafficSignalRepository     signalRepository;
+    private final IntersectionRepository      intersectionRepository;
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository              userRepository;
     private final RouteHistoryRepository      historyRepository;
     private final PolylineEncoder             polylineEncoder;
+    private final CitsSpatClient              citsSpatClient;
+    private final JdbcTemplate               jdbcTemplate;
 
     @Cacheable(
             value = "routes",
@@ -66,6 +73,7 @@ public class RouteService {
 
         String polyline = polylineEncoder.encode(segments);
         List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(segments, userSpeed);
+        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(segments);
 
         double totalDistance = segments.stream()
                 .mapToDouble(RouteSegment::getLengthMeters).sum();
@@ -78,6 +86,7 @@ public class RouteService {
                 .totalTimeSeconds(totalTime)
                 .totalDistanceMeters(totalDistance)
                 .signalCheckpoints(checkpoints)
+                .intersectionSignals(intersectionSignals)
                 .build();
 
         User user = userRepository.getReferenceById(userId);
@@ -86,9 +95,67 @@ public class RouteService {
         profileRepository.findByUserId(userId)
                 .ifPresent(p -> p.recordRoute(totalDistance));
 
-        log.info("[Route] 경로 탐색 완료 | userId={} distance={}m time={}s signals={}",
-                userId, (int) totalDistance, totalTime, signalStops);
+        log.info("[Route] 경로 탐색 완료 | userId={} distance={}m time={}s signals={} intersections={}",
+                userId, (int) totalDistance, totalTime, signalStops, intersectionSignals.size());
         return response;
+    }
+
+    private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(List<RouteSegment> segments) {
+        String lineStringWkt = buildLineStringWkt(segments);
+        if (lineStringWkt == null) return List.of();
+
+        log.info("[Route] linestring WKT 앞 100자: {}", lineStringWkt.substring(0, Math.min(100, lineStringWkt.length())));
+
+        List<Integer> itstIds = intersectionRepository.findItstIdsByRouteWkt(lineStringWkt);
+        log.info("[Route] 경로 위 교차로 수: {} ids={}", itstIds.size(), itstIds);
+        if (itstIds.isEmpty()) return List.of();
+
+        Map<Integer, SpatResponse> spatMap = citsSpatClient.fetchAll(itstIds);
+
+        String sql = "SELECT itst_id, name, ST_Y(geom) AS lat, ST_X(geom) AS lng FROM intersections WHERE itst_id = ANY(?)";
+        Map<Integer, RouteResponse.IntersectionSignal.IntersectionSignalBuilder> builderMap =
+                jdbcTemplate.query(sql,
+                        ps -> ps.setArray(1, ps.getConnection().createArrayOf("integer", itstIds.toArray())),
+                        (rs, rowNum) -> {
+                            int id = rs.getInt("itst_id");
+                            return Map.entry(id, RouteResponse.IntersectionSignal.builder()
+                                    .itstId(id)
+                                    .name(rs.getString("name"))
+                                    .lat(rs.getDouble("lat"))
+                                    .lng(rs.getDouble("lng")));
+                        })
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        return itstIds.stream()
+                .filter(builderMap::containsKey)
+                .map(id -> {
+                    RouteResponse.IntersectionSignal.IntersectionSignalBuilder builder = builderMap.get(id);
+                    SpatResponse spat = spatMap.get(id);
+                    if (spat != null) {
+                        builder.ntPdsgRmdrCs(spat.getNtPdsgRmdrCs())
+                               .etPdsgRmdrCs(spat.getEtPdsgRmdrCs())
+                               .stPdsgRmdrCs(spat.getStPdsgRmdrCs())
+                               .wtPdsgRmdrCs(spat.getWtPdsgRmdrCs())
+                               .nePdsgRmdrCs(spat.getNePdsgRmdrCs())
+                               .sePdsgRmdrCs(spat.getSePdsgRmdrCs())
+                               .swPdsgRmdrCs(spat.getSwPdsgRmdrCs())
+                               .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs());
+                    }
+                    return builder.build();
+                })
+                .toList();
+    }
+
+    private String buildLineStringWkt(List<RouteSegment> segments) {
+        if (segments.size() < 2) return null;
+        // 첫 세그먼트의 시작점을 포함하기 위해 geomWkt에서 첫 좌표 추출
+        RouteSegment first = segments.get(0);
+        String startPoint = first.getEndLng() + " " + first.getEndLat();
+        String points = segments.stream()
+                .map(s -> s.getEndLng() + " " + s.getEndLat())
+                .collect(Collectors.joining(", "));
+        return "LINESTRING(" + startPoint + ", " + points + ")";
     }
 
     private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
@@ -125,5 +192,4 @@ public class RouteService {
         if (signal.calcWaitSeconds(etaSeconds * 1.15) == 0) return RecommendedPace.SLOW_DOWN;
         return RecommendedPace.NORMAL;
     }
-
 }

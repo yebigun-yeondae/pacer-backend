@@ -71,13 +71,18 @@ public class RouteRepository {
     public long findNearestNode(double lat, double lng) {
         String sql = """
             SELECT id FROM road_nodes
-            WHERE component = (
+            WHERE component IS NOT DISTINCT FROM (
                 SELECT component FROM road_nodes
+                WHERE component IS NOT NULL
                 GROUP BY component ORDER BY COUNT(*) DESC LIMIT 1
             )
             ORDER BY geom <-> ST_SetSRID(ST_Point(?, ?), 4326)
             LIMIT 1
             """;
-        return jdbcTemplate.queryForObject(sql, Long.class, lng, lat);
+        Long result = jdbcTemplate.queryForObject(sql, Long.class, lng, lat);
+        if (result == null) {
+            throw new kr.io.pacer.core.exception.RouteNotFoundException("근처에 경로 데이터가 없습니다. 요청 좌표를 확인해 주세요.");
+        }
+        return result;
     }
 }
