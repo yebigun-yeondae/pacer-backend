@@ -1,7 +1,7 @@
 package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.domain.FavoritePlace;
-import kr.io.pacer.core.repository.FavoritePlaceRepository;
+import kr.io.pacer.core.repository.jpa.FavoritePlaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

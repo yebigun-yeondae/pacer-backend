@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class SignalService {
 
     private final CitsSpatClient citsSpatClient;
-    private final JdbcTemplate   jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
     public List<SignalResponse> getSignals(List<Integer> itstIds) {
         Map<Integer, String> nameMap = fetchNames(itstIds);

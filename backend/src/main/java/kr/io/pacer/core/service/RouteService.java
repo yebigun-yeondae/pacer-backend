@@ -11,7 +11,12 @@ import kr.io.pacer.core.dto.internal.RouteSegment;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.exception.RouteNotFoundException;
-import kr.io.pacer.core.repository.*;
+import kr.io.pacer.core.repository.jdbc.IntersectionRepository;
+import kr.io.pacer.core.repository.jdbc.RouteRepository;
+import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
+import kr.io.pacer.core.repository.jpa.RouteHistoryRepository;
+import kr.io.pacer.core.repository.jpa.TrafficSignalRepository;
+import kr.io.pacer.core.repository.jpa.UserRepository;
 import kr.io.pacer.core.util.PolylineEncoder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,15 +36,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RouteService {
 
-    private final RouteRepository             routeRepository;
-    private final TrafficSignalRepository     signalRepository;
-    private final IntersectionRepository      intersectionRepository;
+    private final RouteRepository routeRepository;
+    private final TrafficSignalRepository signalRepository;
+    private final IntersectionRepository intersectionRepository;
     private final PedestrianProfileRepository profileRepository;
-    private final UserRepository              userRepository;
-    private final RouteHistoryRepository      historyRepository;
-    private final PolylineEncoder             polylineEncoder;
-    private final CitsSpatClient              citsSpatClient;
-    private final JdbcTemplate               jdbcTemplate;
+    private final UserRepository userRepository;
+    private final RouteHistoryRepository historyRepository;
+    private final PolylineEncoder polylineEncoder;
+    private final CitsSpatClient citsSpatClient;
+    private final JdbcTemplate jdbcTemplate;
 
     @Cacheable(
             value = "routes",
