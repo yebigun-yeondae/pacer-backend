@@ -1,0 +1,104 @@
+name: Deploy To Pacer Server
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION}}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY}}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Github Repository 파일 불러오기
+        uses: actions/checkout@v4
+
+      - name: JDK 17버전 설치
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: 'gradle'
+
+      - name: gradlew 권한 부여
+        working-directory: ./backend
+        run: chmod +x ./gradlew
+
+      - name: 테스트 및 빌드하기
+        working-directory: ./backend
+        run: ./gradlew clean build
+
+      - name: AWS Resource에 접근할 수 있게 AWS credentials 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: ECR에 로그인하기
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Docker 이미지 생성
+        working-directory: ./backend
+        run: docker build -t pacer-server .
+
+      - name: Docker 이미지에 Tag 붙이기
+        run: docker tag pacer-server ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: ECR에 Docker 이미지 Push하기
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: ECR에서 latest 태그를 제외한 모든 이미지 삭제
+        run: |
+          REGISTRY=${{ steps.login-ecr.outputs.registry }}
+
+          IMAGE_DIGESTS=$(aws ecr list-images --repository-name ${{ env.ECR_REPOSITORY }} \
+            --query 'imageIds[?!(imageTag==`latest`)].imageDigest' --output text)
+
+          if [ -n "$IMAGE_DIGESTS" ]; then
+            aws ecr batch-delete-image --repository-name ${{ env.ECR_REPOSITORY }} \
+              --image-ids $(echo $IMAGE_DIGESTS | awk '{for(i=1;i<=NF;i++) print "imageDigest=" $i}')
+          else
+            echo "latest 이외의 이미지가 존재하지 않습니다."
+          fi
+
+      - name: docker-compose.yml 파일을 EC2로 전송하기
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT }}
+          source: "docker-compose.yml,nginx/"
+          target: ${{ secrets.EC2_WORK_DIR }}
+
+      - name: SSH로 EC2에 접속하여 배포하기
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          WORK_DIR: ${{ secrets.EC2_WORK_DIR }} 
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          port: ${{ secrets.EC2_SSH_PORT }}
+          script_stop: true
+          envs: REGISTRY, WORK_DIR, AWS_REGION, ECR_REPOSITORY, ENV_FILE_CONTENT
+          script: |
+            cd $WORK_DIR
+
+            echo "$ENV_FILE_CONTENT" > .env
+            chmod 600 .env
+
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
+            docker compose down || true
+            docker pull $REGISTRY/$ECR_REPOSITORY:latest
+            docker compose up -d
+            docker image prune -f
