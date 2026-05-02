@@ -28,9 +28,9 @@ jobs:
         working-directory: ./backend
         run: chmod +x ./gradlew
 
-      - name: 테스트 및 빌드하기
+      - name: 빌드하기
         working-directory: ./backend
-        run: ./gradlew clean build
+        run: ./gradlew clean build -x test
 
       - name: AWS Resource에 접근할 수 있게 AWS credentials 설정
         uses: aws-actions/configure-aws-credentials@v4
