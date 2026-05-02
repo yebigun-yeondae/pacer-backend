@@ -1,7 +1,7 @@
 package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.domain.FavoritePlace;
-import kr.io.pacer.core.repository.FavoritePlaceRepository;
+import kr.io.pacer.core.repository.jpa.FavoritePlaceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
