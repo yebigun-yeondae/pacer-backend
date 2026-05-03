@@ -45,7 +45,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/google",
                                 "/api/v1/auth/kakao",
                                 "/api/v1/auth/reissue",
-                                "/api/v1/auth/logout"
+                                "/api/v1/auth/logout",
+                                "/actuator/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
