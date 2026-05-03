@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -63,8 +64,10 @@ public class RouteService {
 
         double nowEpochSec = Instant.now().getEpochSecond();
 
-        List<RouteSegment> segments =
-                routeRepository.findRoute(startNode, endNode, userSpeed, nowEpochSec);
+        List<RouteSegment> segments = routeRepository.findRoute(
+                startNode, endNode, userSpeed, nowEpochSec,
+                req.getOrigin().getLat(), req.getOrigin().getLng(),
+                req.getDestination().getLat(), req.getDestination().getLng());
 
         if (segments.isEmpty()) {
             log.warn("[Route] 경로 없음 | userId={} startNode={} endNode={}", userId, startNode, endNode);
@@ -140,11 +143,27 @@ public class RouteService {
                                .nePdsgRmdrCs(spat.getNePdsgRmdrCs())
                                .sePdsgRmdrCs(spat.getSePdsgRmdrCs())
                                .swPdsgRmdrCs(spat.getSwPdsgRmdrCs())
-                               .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs());
+                               .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs())
+                               .signalState(resolveSignalState(spat));
+                    } else {
+                        builder.signalState(SignalState.UNKNOWN);
                     }
                     return builder.build();
                 })
                 .toList();
+    }
+
+    private SignalState resolveSignalState(SpatResponse spat) {
+        List<Integer> values = Arrays.asList(
+                spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
+                spat.getStPdsgRmdrCs(), spat.getWtPdsgRmdrCs(),
+                spat.getNePdsgRmdrCs(), spat.getSePdsgRmdrCs(),
+                spat.getSwPdsgRmdrCs(), spat.getNwPdsgRmdrCs()
+        );
+        boolean allNull = values.stream().allMatch(v -> v == null);
+        if (allNull) return SignalState.UNKNOWN;
+        boolean anyPositive = values.stream().anyMatch(v -> v != null && v > 0);
+        return anyPositive ? SignalState.GREEN : SignalState.RED;
     }
 
     private String buildLineStringWkt(List<RouteSegment> segments) {

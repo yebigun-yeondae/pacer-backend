@@ -26,18 +26,19 @@ public class RouteResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class IntersectionSignal {
-        private int     itstId;
-        private String  name;
-        private double  lat;
-        private double  lng;
-        private Integer ntPdsgRmdrCs;
-        private Integer etPdsgRmdrCs;
-        private Integer stPdsgRmdrCs;
-        private Integer wtPdsgRmdrCs;
-        private Integer nePdsgRmdrCs;
-        private Integer sePdsgRmdrCs;
-        private Integer swPdsgRmdrCs;
-        private Integer nwPdsgRmdrCs;
+        private int         itstId;
+        private String      name;
+        private double      lat;
+        private double      lng;
+        private Integer     ntPdsgRmdrCs;
+        private Integer     etPdsgRmdrCs;
+        private Integer     stPdsgRmdrCs;
+        private Integer     wtPdsgRmdrCs;
+        private Integer     nePdsgRmdrCs;
+        private Integer     sePdsgRmdrCs;
+        private Integer     swPdsgRmdrCs;
+        private Integer     nwPdsgRmdrCs;
+        private SignalState signalState;
     }
 
     @Getter

@@ -15,7 +15,14 @@ public class RouteRepository {
     private final JdbcTemplate jdbcTemplate;
 
     public List<RouteSegment> findRoute(long startNode, long endNode,
-                                        double userSpeed, double startEpochSec) {
+                                        double userSpeed, double startEpochSec,
+                                        double originLat, double originLng,
+                                        double destLat, double destLng) {
+        double bboxMinLng = Math.min(originLng, destLng) - 0.05;
+        double bboxMinLat = Math.min(originLat, destLat) - 0.05;
+        double bboxMaxLng = Math.max(originLng, destLng) + 0.05;
+        double bboxMaxLat = Math.max(originLat, destLat) + 0.05;
+
         String sql = """
             SELECT r.seq,
                    r.edge,
@@ -42,6 +49,7 @@ public class RouteRepository {
                        ST_Y(ST_EndPoint(e.geom))   AS y2
                 FROM road_edges e
                 WHERE e.is_pedestrian = true
+                  AND e.geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
               $fmt$, %s, %s, %s, %s, %s),
               %d, %d, directed := false
             ) r
@@ -51,6 +59,7 @@ public class RouteRepository {
             """.formatted(
                 userSpeed, startEpochSec, userSpeed,
                 userSpeed, startEpochSec,
+                bboxMinLng, bboxMinLat, bboxMaxLng, bboxMaxLat,
                 userSpeed, startEpochSec, userSpeed, userSpeed, startEpochSec,
                 startNode, endNode
         );
