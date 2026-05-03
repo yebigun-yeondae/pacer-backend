@@ -67,14 +67,14 @@ jobs:
             echo "latest 이외의 이미지가 존재하지 않습니다."
           fi
 
-      - name: docker-compose.yml 파일을 EC2로 전송하기
+      - name: docker-compose.yml와 Nginx 설정, Prometheus설정 파일을 EC2로 전송하기
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_PRIVATE_KEY }}
           port: ${{ secrets.EC2_SSH_PORT }}
-          source: "docker-compose.yml,nginx/"
+          source: "docker-compose.yml,nginx/,prometheus/"
           target: ${{ secrets.EC2_WORK_DIR }}
 
       - name: SSH로 EC2에 접속하여 배포하기
