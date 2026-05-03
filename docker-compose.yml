@@ -109,13 +109,16 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     environment:
+      - GF_SERVER_DOMAIN=api.pacer.io.kr
       - GF_SERVER_ROOT_URL=https://api.pacer.io.kr/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_PROTOCOL=http
+      - GF_SERVER_ENFORCE_DOMAIN=false
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
-      
+
 volumes:
   pg_data:
   redis_data:
