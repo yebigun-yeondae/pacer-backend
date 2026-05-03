@@ -25,3 +25,12 @@ jwt:
 cits:
   api-url: ${CITS_API_URL}
   api-key: ${CITS_API_KEY}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, info
+  metrics:
+    tags:
+      application: pacer-backend
