@@ -119,6 +119,20 @@ services:
     depends_on:
       - prometheus
 
+  # --- 9. Valhalla ---
+  valhalla:
+    image: ghcr.io/valhalla/valhalla:latest
+    container_name: valhalla_server
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./pacer_map_data:/custom_files 
+    environment:
+      - TILE_URLS=/custom_files/south-korea-latest.osm.pbf
+      - SERVE_TILES=True
+      - AUTO_REBUILD=True
+    restart: always
+
 volumes:
   pg_data:
   redis_data:
