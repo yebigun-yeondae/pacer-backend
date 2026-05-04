@@ -121,17 +121,19 @@ services:
 
   # --- 9. Valhalla ---
   valhalla:
-    image: ghcr.io/valhalla/valhalla:latest
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: valhalla_server
     ports:
       - "8002:8002"
     volumes:
-      - ./pacer_map_data:/custom_files 
+      - /home/ubuntu/pacer/pacer_map_data:/custom_files
     environment:
-      - TILE_URLS=/custom_files/south-korea-latest.osm.pbf
-      - SERVE_TILES=True
-      - AUTO_REBUILD=True
+      - tile_urls=https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
+      - serve_tiles=True
+      - build_by_default=True
+      - use_tiles_ignore_pbf=False
     restart: always
+
 
 volumes:
   pg_data:
