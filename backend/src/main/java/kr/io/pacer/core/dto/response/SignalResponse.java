@@ -12,12 +12,12 @@ import lombok.NoArgsConstructor;
 public class SignalResponse {
     private int     itstId;
     private String  name;
-    private Integer ntPdsgRmdrCs;
-    private Integer etPdsgRmdrCs;
-    private Integer stPdsgRmdrCs;
-    private Integer wtPdsgRmdrCs;
-    private Integer nePdsgRmdrCs;
-    private Integer sePdsgRmdrCs;
-    private Integer swPdsgRmdrCs;
-    private Integer nwPdsgRmdrCs;
+    private Double ntPdsgRmdrCs;
+    private Double etPdsgRmdrCs;
+    private Double stPdsgRmdrCs;
+    private Double wtPdsgRmdrCs;
+    private Double nePdsgRmdrCs;
+    private Double sePdsgRmdrCs;
+    private Double swPdsgRmdrCs;
+    private Double nwPdsgRmdrCs;
 }

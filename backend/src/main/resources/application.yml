@@ -26,6 +26,9 @@ cits:
   api-url: ${CITS_API_URL}
   api-key: ${CITS_API_KEY}
 
+valhalla:
+  url: ${VALHALLA_URL}
+
 management:
   endpoints:
     web:

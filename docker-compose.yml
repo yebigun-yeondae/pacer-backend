@@ -9,6 +9,8 @@ services:
       - POSTGRES_DB=${DB_NAME}
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./intersections.csv:/docker-entrypoint-initdb.d/intersections.csv
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
@@ -45,6 +47,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      valhalla:
+        condition: service_started
     restart: unless-stopped
 
   # --- 4. 백엔드 2 ---
@@ -62,6 +66,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      valhalla:
+        condition: service_started
     restart: unless-stopped
 
   # --- 5. Nginx ---
@@ -123,8 +129,6 @@ services:
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: valhalla_server
-    ports:
-      - "8002:8002"
     volumes:
       - /home/ubuntu/pacer/pacer_map_data:/custom_files
     environment:
