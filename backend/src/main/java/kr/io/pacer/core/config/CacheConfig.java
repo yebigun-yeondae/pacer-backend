@@ -24,13 +24,14 @@ public class CacheConfig {
         ObjectMapper cacheMapper = objectMapper.copy()
                 .activateDefaultTyping(
                         objectMapper.getPolymorphicTypeValidator(),
-                        ObjectMapper.DefaultTyping.NON_FINAL,
+                        ObjectMapper.DefaultTyping.EVERYTHING,
                         JsonTypeInfo.As.PROPERTY
                 );
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(5))
                 .disableCachingNullValues()
+                .computePrefixWith(name -> "v1:" + name + ":")
                 .serializeKeysWith(
                         RedisSerializationContext.SerializationPair
                                 .fromSerializer(new StringRedisSerializer()))

@@ -1,0 +1,70 @@
+package kr.io.pacer.core.client;
+
+import kr.io.pacer.core.domain.enums.RouteMode;
+import kr.io.pacer.core.dto.external.ValhallaResponse;
+import kr.io.pacer.core.exception.RouteNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+@Component
+public class ValhallaClient {
+
+    private final RestClient restClient;
+
+    public ValhallaClient(@Value("${valhalla.url}") String valhallaUrl) {
+        this.restClient = RestClient.builder()
+                .baseUrl(valhallaUrl)
+                .build();
+    }
+
+    public ValhallaResponse route(double originLat, double originLng,
+                                  double destLat, double destLng,
+                                  RouteMode mode, double walkingSpeedMps) {
+        double walkingSpeedKmh = Math.round(walkingSpeedMps * 3.6 * 10.0) / 10.0;
+
+        Map<String, Object> pedestrianOptions = new HashMap<>();
+        pedestrianOptions.put("walking_speed", walkingSpeedKmh);
+        if (mode == RouteMode.SHORTEST) {
+            pedestrianOptions.put("shortest", true);
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("locations", List.of(
+                Map.of("lat", originLat, "lon", originLng),
+                Map.of("lat", destLat, "lon", destLng)
+        ));
+        body.put("costing", "pedestrian");
+        body.put("costing_options", Map.of("pedestrian", pedestrianOptions));
+        body.put("shape_format", "polyline5");
+        body.put("directions_options", Map.of("language", "ko-KR"));
+
+        try {
+            ValhallaResponse response = restClient.post()
+                    .uri("/route")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(ValhallaResponse.class);
+
+            if (response == null || response.getTrip() == null
+                    || response.getTrip().getLegs() == null
+                    || response.getTrip().getLegs().isEmpty()) {
+                throw new RouteNotFoundException("경로를 찾을 수 없습니다.");
+            }
+            return response;
+        } catch (RouteNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[Valhalla] 경로 탐색 실패: {}", e.getMessage());
+            throw new RouteNotFoundException("경로를 찾을 수 없습니다.");
+        }
+    }
+}

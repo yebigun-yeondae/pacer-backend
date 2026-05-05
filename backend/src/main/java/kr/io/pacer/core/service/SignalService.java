@@ -25,7 +25,7 @@ public class SignalService {
         return itstIds.stream()
                 .map(id -> {
                     SpatResponse spat = spatMap.get(id);
-                    return SignalResponse.builder()
+                    return (SignalResponse) SignalResponse.builder()
                             .itstId(id)
                             .name(nameMap.getOrDefault(id, ""))
                             .ntPdsgRmdrCs(spat != null ? spat.getNtPdsgRmdrCs() : null)
