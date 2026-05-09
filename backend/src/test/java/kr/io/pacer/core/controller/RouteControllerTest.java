@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.io.pacer.core.auth.JwtFilter;
 import kr.io.pacer.core.config.SecurityConfig;
 import kr.io.pacer.core.config.TestSecurityConfig;
+import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.exception.RouteNotFoundException;
 import kr.io.pacer.core.service.RouteService;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -134,6 +136,45 @@ class RouteControllerTest {
                         .with(authentication(mockAuth())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ROUTE_NOT_FOUND"));
+    }
+
+    // ── 히스토리 조회 ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /api/v1/routes/history - 히스토리 있음: 200 + 목록 반환")
+    void getHistory_withItems_returns200WithList() throws Exception {
+        RouteHistoryResponse history = mock(RouteHistoryResponse.class);
+        given(routeService.getHistory(eq(TEST_USER_ID), any())).willReturn(List.of(history));
+
+        mockMvc.perform(get("/api/v1/routes/history")
+                        .with(authentication(mockAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/routes/history - 히스토리 없음: 200 + 빈 배열")
+    void getHistory_noItems_returns200WithEmptyArray() throws Exception {
+        given(routeService.getHistory(eq(TEST_USER_ID), any())).willReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/routes/history")
+                        .with(authentication(mockAuth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/routes/history - size 파라미터 적용")
+    void getHistory_withSizeParam_passesPageableToService() throws Exception {
+        given(routeService.getHistory(eq(TEST_USER_ID), any())).willReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/routes/history?size=5")
+                        .with(authentication(mockAuth())))
+                .andExpect(status().isOk());
+
+        then(routeService).should().getHistory(eq(TEST_USER_ID), any());
     }
 
     @Test
