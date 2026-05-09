@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(head *)",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Backend\\\\Test\\\\pacer-backend\\\\src\" | Where-Object { $_.PSIsContainer -eq $false } | Select-Object -ExpandProperty FullName | ForEach-Object { $_.Replace\\(\"C:\\\\Backend\\\\Test\\\\pacer-backend\\\\\", \"\"\\) } | Select-Object -First 150)",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Backend\\\\Test\\\\pacer-backend\" | Where-Object { $_.PSIsContainer -eq $false } | Select-Object -ExpandProperty FullName | ForEach-Object { $_.Replace\\(\"C:\\\\Backend\\\\Test\\\\pacer-backend\\\\\", \"\"\\) } | Select-Object -First 200)"
+    ]
+  }
+}

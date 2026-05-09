@@ -25,6 +25,8 @@ jwt:
 cits:
   api-url: ${CITS_API_URL}
   api-key: ${CITS_API_KEY}
+  spbi:
+    url: ${CITS_SPBI_URL}
 
 valhalla:
   url: ${VALHALLA_URL}

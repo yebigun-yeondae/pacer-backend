@@ -1,11 +1,13 @@
 package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.client.CitsSpatClient;
+import kr.io.pacer.core.client.CitsSpbiClient;
 import kr.io.pacer.core.domain.RouteHistory;
 import kr.io.pacer.core.domain.User;
 import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.external.SpatResponse;
+import kr.io.pacer.core.dto.external.SpbiResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
@@ -29,6 +31,7 @@ public class RouteService {
 
     private final RouteGeometryService routeGeometryService;
     private final CitsSpatClient citsSpatClient;
+    private final CitsSpbiClient citsSpbiClient;
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final RouteHistoryRepository historyRepository;
@@ -43,10 +46,11 @@ public class RouteService {
         CachedRoute cached = routeGeometryService.fetch(req, userId);
 
         List<Integer> itstIds = cached.intersections().stream().map(IntersectionInfo::itstId).toList();
-        Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
+        Map<Integer, SpatResponse> spatMap  = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
+        Map<Integer, SpbiResponse> spbiMap  = itstIds.isEmpty() ? Map.of() : citsSpbiClient.fetchAll(itstIds);
 
         List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, cached.totalTimeSec());
-        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap);
+        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, spbiMap);
 
         int signalStops = (int) checkpoints.stream()
                 .filter(c -> c.getSignalState() == SignalState.RED).count();
@@ -95,7 +99,8 @@ public class RouteService {
 
     private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(
             List<IntersectionInfo> intersections,
-            Map<Integer, SpatResponse> spatMap) {
+            Map<Integer, SpatResponse> spatMap,
+            Map<Integer, SpbiResponse> spbiMap) {
 
         return intersections.stream()
                 .map(i -> {
@@ -116,6 +121,18 @@ public class RouteService {
                                .sePdsgRmdrCs(spat.getSePdsgRmdrCs())
                                .swPdsgRmdrCs(spat.getSwPdsgRmdrCs())
                                .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs());
+                    }
+
+                    SpbiResponse spbi = spbiMap.get(i.itstId());
+                    if (spbi != null) {
+                        builder.ntPdsgStatNm(spbi.getNtPdsgStatNm())
+                               .etPdsgStatNm(spbi.getEtPdsgStatNm())
+                               .stPdsgStatNm(spbi.getStPdsgStatNm())
+                               .wtPdsgStatNm(spbi.getWtPdsgStatNm())
+                               .nePdsgStatNm(spbi.getNePdsgStatNm())
+                               .sePdsgStatNm(spbi.getSePdsgStatNm())
+                               .swPdsgStatNm(spbi.getSwPdsgStatNm())
+                               .nwPdsgStatNm(spbi.getNwPdsgStatNm());
                     }
                     return builder.build();
                 })
