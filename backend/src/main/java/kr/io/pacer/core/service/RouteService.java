@@ -50,7 +50,7 @@ public class RouteService {
         Map<Integer, SpatResponse> spatMap  = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
         Map<Integer, SpbiResponse> spbiMap  = itstIds.isEmpty() ? Map.of() : citsSpbiClient.fetchAll(itstIds);
 
-        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, cached.totalTimeSec());
+        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, spbiMap, cached.totalTimeSec());
         List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, spbiMap);
 
         int signalStops = (int) checkpoints.stream()
@@ -80,14 +80,15 @@ public class RouteService {
     private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
             List<IntersectionInfo> intersections,
             Map<Integer, SpatResponse> spatMap,
+            Map<Integer, SpbiResponse> spbiMap,
             int totalTimeSec) {
 
         return intersections.stream()
-                .filter(i -> spatMap.containsKey(i.itstId()))
+                .filter(i -> spbiMap.containsKey(i.itstId()))
                 .map(i -> {
-                    SpatResponse spat = spatMap.get(i.itstId());
+                    SpbiResponse spbi = spbiMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
-                    SignalState state = resolveSignalState(spat);
+                    SignalState state = resolveSignalStateFromSpbi(spbi);
                     return RouteResponse.SignalCheckpoint.builder()
                             .nodeId(i.itstId())
                             .lat(i.lat())
@@ -142,19 +143,21 @@ public class RouteService {
                 .toList();
     }
 
-    private SignalState resolveSignalState(SpatResponse spat) {
-        boolean hasValidGreen = hasAnyValidPdsg(
-                spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
-                spat.getStPdsgRmdrCs(), spat.getWtPdsgRmdrCs(),
-                spat.getNePdsgRmdrCs(), spat.getSePdsgRmdrCs(),
-                spat.getSwPdsgRmdrCs(), spat.getNwPdsgRmdrCs());
-        return hasValidGreen ? SignalState.GREEN : SignalState.RED;
-    }
-
-    private boolean hasAnyValidPdsg(Double... values) {
-        for (Double v : values) {
-            if (v != null && v < 36001.0 && v > 0) return true;
+    private SignalState resolveSignalStateFromSpbi(SpbiResponse spbi) {
+        String[] statNames = {
+                spbi.getNtPdsgStatNm(), spbi.getEtPdsgStatNm(),
+                spbi.getStPdsgStatNm(), spbi.getWtPdsgStatNm(),
+                spbi.getNePdsgStatNm(), spbi.getSePdsgStatNm(),
+                spbi.getSwPdsgStatNm(), spbi.getNwPdsgStatNm()
+        };
+        boolean allNull = true;
+        for (String stat : statNames) {
+            if (stat == null) continue;
+            allNull = false;
+            if (stat.equals("permissive-Movement-Allowed") || stat.equals("protected-Movement-Allowed")) {
+                return SignalState.GREEN;
+            }
         }
-        return false;
+        return allNull ? SignalState.UNKNOWN : SignalState.RED;
     }
 }
