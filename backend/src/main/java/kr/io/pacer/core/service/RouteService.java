@@ -7,6 +7,7 @@ import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
+import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
@@ -15,6 +16,7 @@ import kr.io.pacer.core.repository.jpa.UserRepository;
 import kr.io.pacer.core.service.RouteGeometryService.CachedRoute;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,7 @@ public class RouteService {
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final RouteHistoryRepository historyRepository;
+    private final FavoritePlaceService favoritePlaceService;
 
     @Transactional
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
@@ -64,6 +67,8 @@ public class RouteService {
                 RouteHistory.of(user, req, cached.polyline(), cached.totalTimeSec(), cached.totalDistanceM(), signalStops));
         profileRepository.findByUserId(userId)
                 .ifPresent(p -> p.recordRoute(cached.totalDistanceM()));
+        favoritePlaceService.incrementVisitIfNearby(
+                userId, req.getDestination().getLat(), req.getDestination().getLng());
 
         log.info("[Route] 경로 탐색 완료 | userId={} distance={}m time={}s stops={} intersections={}",
                 userId, (int) cached.totalDistanceM(), cached.totalTimeSec(), signalStops, intersectionSignals.size());
@@ -120,6 +125,16 @@ public class RouteService {
                     return builder.build();
                 })
                 .toList();
+    }
+
+    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
+        List<RouteHistoryResponse> result = historyRepository
+                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .stream()
+                .map(RouteHistoryResponse::from)
+                .toList();
+        log.debug("[Route] 히스토리 조회 | userId={} count={}", userId, result.size());
+        return result;
     }
 
     private SignalState resolveSignalState(SpatResponse spat) {

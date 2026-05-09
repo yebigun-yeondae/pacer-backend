@@ -20,6 +20,20 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("ROUTE_NOT_FOUND", e.getMessage()));
     }
 
+    @ExceptionHandler(FavoriteNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleFavoriteNotFound(FavoriteNotFoundException e) {
+        log.warn("[Exception] FavoriteNotFoundException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("FAVORITE_NOT_FOUND", e.getMessage()));
+    }
+
+    @ExceptionHandler(FavoriteNotOwnedException.class)
+    public ResponseEntity<ErrorResponse> handleFavoriteNotOwned(FavoriteNotOwnedException e) {
+        log.warn("[Exception] FavoriteNotOwnedException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse("FAVORITE_NOT_OWNED", e.getMessage()));
+    }
+
     @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException e) {
         log.warn("[Exception] InvalidTokenException: {}", e.getMessage());
