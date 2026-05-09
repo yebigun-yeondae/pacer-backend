@@ -35,6 +35,7 @@ public class RouteService {
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final RouteHistoryRepository historyRepository;
+    private final FavoritePlaceService favoritePlaceService;
 
     @Transactional
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
@@ -68,6 +69,8 @@ public class RouteService {
                 RouteHistory.of(user, req, cached.polyline(), cached.totalTimeSec(), cached.totalDistanceM(), signalStops));
         profileRepository.findByUserId(userId)
                 .ifPresent(p -> p.recordRoute(cached.totalDistanceM()));
+        favoritePlaceService.incrementVisitIfNearby(
+                userId, req.getDestination().getLat(), req.getDestination().getLng());
 
         log.info("[Route] 경로 탐색 완료 | userId={} distance={}m time={}s stops={} intersections={}",
                 userId, (int) cached.totalDistanceM(), cached.totalTimeSec(), signalStops, intersectionSignals.size());
