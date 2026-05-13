@@ -42,6 +42,8 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+    volumes:
+      - ./logs/backend1:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -61,6 +63,8 @@ services:
       - .env
     environment:
       - SPRING_PROFILES_ACTIVE=prod
+    volumes:
+      - ./logs/backend2:/app/logs
     depends_on:
       db:
         condition: service_healthy
