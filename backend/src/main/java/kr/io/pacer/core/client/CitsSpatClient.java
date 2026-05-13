@@ -4,6 +4,7 @@ import kr.io.pacer.core.dto.external.SpatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -24,8 +26,12 @@ public class CitsSpatClient {
             @Value("${cits.api-url}") String apiUrl,
             @Value("${cits.api-key}") String apiKey) {
         this.apiKey = apiKey;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(10000);
         this.restClient = RestClient.builder()
                 .baseUrl(apiUrl)
+                .requestFactory(factory)
                 .build();
     }
 
@@ -35,7 +41,15 @@ public class CitsSpatClient {
                 .toList();
 
         return futures.stream()
-                .map(CompletableFuture::join)
+                .map(f -> {
+                    try {
+                        return f.get(11, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        log.warn("[CITS] fetchAll timeout itstId 응답 무시: {}", e.getMessage());
+                        f.cancel(true);
+                        return null;
+                    }
+                })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(SpatResponse::getItstIdAsInt, item -> item));
     }

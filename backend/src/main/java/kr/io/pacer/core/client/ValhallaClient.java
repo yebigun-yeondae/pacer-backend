@@ -6,6 +6,7 @@ import kr.io.pacer.core.exception.RouteNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -20,8 +21,12 @@ public class ValhallaClient {
     private final RestClient restClient;
 
     public ValhallaClient(@Value("${valhalla.url}") String valhallaUrl) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(10000);
         this.restClient = RestClient.builder()
                 .baseUrl(valhallaUrl)
+                .requestFactory(factory)
                 .build();
     }
 
