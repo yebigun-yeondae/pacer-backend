@@ -48,6 +48,10 @@ public class RouteService {
         List<Integer> itstIds = cached.intersections().stream().map(IntersectionInfo::itstId).toList();
         Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
 
+        cached.intersections().stream()
+                .filter(i -> !spatMap.containsKey(i.itstId()))
+                .forEach(i -> log.warn("[CITS] 신호 데이터 누락 itstId={} name={}", i.itstId(), i.name()));
+
         List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, cached.totalTimeSec());
         List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap);
 

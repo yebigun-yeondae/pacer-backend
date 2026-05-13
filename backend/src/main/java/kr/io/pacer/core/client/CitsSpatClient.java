@@ -4,6 +4,7 @@ import kr.io.pacer.core.dto.external.SpatResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -24,8 +25,12 @@ public class CitsSpatClient {
             @Value("${cits.api-url}") String apiUrl,
             @Value("${cits.api-key}") String apiKey) {
         this.apiKey = apiKey;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3000);
+        factory.setReadTimeout(5000);
         this.restClient = RestClient.builder()
                 .baseUrl(apiUrl)
+                .requestFactory(factory)
                 .build();
     }
 
