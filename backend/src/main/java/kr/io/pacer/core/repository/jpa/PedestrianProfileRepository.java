@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface PedestrianProfileRepository extends JpaRepository<PedestrianProfile, UUID> {
 
     Optional<PedestrianProfile> findByUserId(UUID userId);
+    void deleteByUserId(UUID userId);
 }

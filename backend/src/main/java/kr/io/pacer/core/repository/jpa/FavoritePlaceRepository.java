@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface FavoritePlaceRepository extends JpaRepository<FavoritePlace, UUID> {
 
     List<FavoritePlace> findByUserIdOrderByVisitCountDesc(UUID userId);
+    void deleteByUserId(UUID userId);
 
     @Query(value = """
             SELECT * FROM favorite_places
