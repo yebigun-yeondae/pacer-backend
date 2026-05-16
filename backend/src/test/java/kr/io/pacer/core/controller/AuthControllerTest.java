@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.io.pacer.core.auth.JwtFilter;
 import kr.io.pacer.core.config.SecurityConfig;
 import kr.io.pacer.core.config.TestSecurityConfig;
-import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.response.TokenResponse;
@@ -23,7 +22,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -183,10 +181,6 @@ class AuthControllerTest {
     @Test
     @DisplayName("POST /api/v1/auth/google - 정상: 200 + 토큰 반환")
     void googleLogin_validRequest_returns200WithTokens() throws Exception {
-        AccessTokenDto accessTokenDto = new AccessTokenDto();
-        ReflectionTestUtils.setField(accessTokenDto, "accessToken", "google-access");
-
-        given(googleAuthService.getAccessToken(any())).willReturn(accessTokenDto);
         given(googleAuthService.getProfile(any())).willReturn(new GoogleProfileDto());
         given(authService.loginWithGoogle(any())).willReturn(new TokenResponse("access", "refresh"));
 
