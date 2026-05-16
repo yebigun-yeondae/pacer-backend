@@ -35,6 +35,13 @@ bus-stop:
   city-codes: ${BUS_STOP_CITY_CODES:11,25,26,27,28,29,30,36,41,42,43,44,45,46,47,48,50}
   page-size: 1000
 
+spring:
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+
 management:
   endpoints:
     web:
