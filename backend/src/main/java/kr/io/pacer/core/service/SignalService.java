@@ -4,6 +4,7 @@ import kr.io.pacer.core.client.CitsSpatClient;
 import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.response.SignalResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SignalService {
@@ -19,6 +21,7 @@ public class SignalService {
     private final JdbcTemplate jdbcTemplate;
 
     public List<SignalResponse> getSignals(List<Integer> itstIds) {
+        log.info("[Signal] 신호 조회 | count={} itstIds={}", itstIds.size(), itstIds);
         Map<Integer, String> nameMap = fetchNames(itstIds);
         Map<Integer, SpatResponse> spatMap = citsSpatClient.fetchAll(itstIds);
 
