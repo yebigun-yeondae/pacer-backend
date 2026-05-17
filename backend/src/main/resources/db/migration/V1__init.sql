@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
     role              VARCHAR(255) NOT NULL DEFAULT 'USER'
                                    CHECK (role IN ('USER', 'ADMIN')),
     created_at        TIMESTAMP    NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMP    NOT NULL DEFAULT now()
+    updated_at        TIMESTAMP    NOT NULL DEFAULT now(),
+    deleted_at        TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS pedestrian_profiles (
