@@ -1,6 +1,7 @@
 package kr.io.pacer.core.auth;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,17 +32,20 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String token = resolveToken(request);
 
-        if (token != null && jwtProvider.isValid(token)) {
-            UUID   userId = jwtProvider.extractUserId(token);
-            Claims claims = jwtProvider.parse(token);
-            String role   = claims.get("role", String.class);
+        if (token != null) {
+            try {
+                Claims claims = jwtProvider.parse(token);
+                UUID   userId = UUID.fromString(claims.getSubject());
+                String role   = claims.get("role", String.class);
 
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(
-                            userId, null,
-                            List.of(new SimpleGrantedAuthority(role))
-                    );
-            SecurityContextHolder.getContext().setAuthentication(auth);
+                UsernamePasswordAuthenticationToken auth =
+                        new UsernamePasswordAuthenticationToken(
+                                userId, null,
+                                List.of(new SimpleGrantedAuthority(role))
+                        );
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            } catch (JwtException | IllegalArgumentException ignored) {
+            }
         }
 
         chain.doFilter(request, response);
