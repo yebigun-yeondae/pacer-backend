@@ -1,14 +1,15 @@
 package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.client.CitsSpatClient;
-import kr.io.pacer.core.client.CitsSpbiClient;
+import kr.io.pacer.core.client.CitsSpatStateClient;
 import kr.io.pacer.core.domain.RouteHistory;
 import kr.io.pacer.core.domain.User;
 import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.external.SpatResponse;
-import kr.io.pacer.core.dto.external.SpbiResponse;
+import kr.io.pacer.core.dto.external.SpatStateResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
+import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
@@ -17,6 +18,7 @@ import kr.io.pacer.core.repository.jpa.UserRepository;
 import kr.io.pacer.core.service.RouteGeometryService.CachedRoute;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,13 +33,20 @@ public class RouteService {
 
     private final RouteGeometryService routeGeometryService;
     private final CitsSpatClient citsSpatClient;
-    private final CitsSpbiClient citsSpbiClient;
+    private final CitsSpatStateClient citsSpatStateClient;
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final RouteHistoryRepository historyRepository;
     private final FavoritePlaceService favoritePlaceService;
 
-    @Transactional
+    @Transactional(readOnly = true)
+    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
+        return historyRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .stream()
+                .map(RouteHistoryResponse::from)
+                .toList();
+    }
+
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
         log.info("[Route] 경로 탐색 시작 | userId={} origin=({},{}) dest=({},{})",
                 userId,
@@ -47,11 +56,15 @@ public class RouteService {
         CachedRoute cached = routeGeometryService.fetch(req, userId);
 
         List<Integer> itstIds = cached.intersections().stream().map(IntersectionInfo::itstId).toList();
-        Map<Integer, SpatResponse> spatMap  = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
-        Map<Integer, SpbiResponse> spbiMap  = itstIds.isEmpty() ? Map.of() : citsSpbiClient.fetchAll(itstIds);
+        Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
+        Map<Integer, SpatStateResponse> stateMap = itstIds.isEmpty() ? Map.of() : citsSpatStateClient.fetchAll(itstIds);
 
-        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, spbiMap, cached.totalTimeSec());
-        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, spbiMap);
+        cached.intersections().stream()
+                .filter(i -> !spatMap.containsKey(i.itstId()))
+                .forEach(i -> log.warn("[CITS] 신호 데이터 누락 itstId={} name={}", i.itstId(), i.name()));
+
+        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, cached.totalTimeSec());
+        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, stateMap);
 
         int signalStops = (int) checkpoints.stream()
                 .filter(c -> c.getSignalState() == SignalState.RED).count();
@@ -67,8 +80,7 @@ public class RouteService {
         User user = userRepository.getReferenceById(userId);
         historyRepository.save(
                 RouteHistory.of(user, req, cached.polyline(), cached.totalTimeSec(), cached.totalDistanceM(), signalStops));
-        profileRepository.findByUserId(userId)
-                .ifPresent(p -> p.recordRoute(cached.totalDistanceM()));
+        profileRepository.incrementRouteStats(userId, cached.totalDistanceM());
         favoritePlaceService.incrementVisitIfNearby(
                 userId, req.getDestination().getLat(), req.getDestination().getLng());
 
@@ -80,21 +92,18 @@ public class RouteService {
     private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
             List<IntersectionInfo> intersections,
             Map<Integer, SpatResponse> spatMap,
-            Map<Integer, SpbiResponse> spbiMap,
             int totalTimeSec) {
 
         return intersections.stream()
-                .filter(i -> spbiMap.containsKey(i.itstId()))
+                .filter(i -> spatMap.containsKey(i.itstId()))
                 .map(i -> {
-                    SpbiResponse spbi = spbiMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
-                    SignalState state = resolveSignalStateFromSpbi(spbi);
                     return RouteResponse.SignalCheckpoint.builder()
                             .nodeId(i.itstId())
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(state)
+                            .signalState(SignalState.UNKNOWN)
                             .recommendedPace(RecommendedPace.NORMAL)
                             .build();
                 })
@@ -104,7 +113,7 @@ public class RouteService {
     private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(
             List<IntersectionInfo> intersections,
             Map<Integer, SpatResponse> spatMap,
-            Map<Integer, SpbiResponse> spbiMap) {
+            Map<Integer, SpatStateResponse> stateMap) {
 
         return intersections.stream()
                 .map(i -> {
@@ -127,37 +136,19 @@ public class RouteService {
                                .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs());
                     }
 
-                    SpbiResponse spbi = spbiMap.get(i.itstId());
-                    if (spbi != null) {
-                        builder.ntPdsgStatNm(spbi.getNtPdsgStatNm())
-                               .etPdsgStatNm(spbi.getEtPdsgStatNm())
-                               .stPdsgStatNm(spbi.getStPdsgStatNm())
-                               .wtPdsgStatNm(spbi.getWtPdsgStatNm())
-                               .nePdsgStatNm(spbi.getNePdsgStatNm())
-                               .sePdsgStatNm(spbi.getSePdsgStatNm())
-                               .swPdsgStatNm(spbi.getSwPdsgStatNm())
-                               .nwPdsgStatNm(spbi.getNwPdsgStatNm());
+                    SpatStateResponse state = stateMap.get(i.itstId());
+                    if (state != null) {
+                        builder.ntPdsgStatNm(state.getNtPdsgStatNm())
+                               .etPdsgStatNm(state.getEtPdsgStatNm())
+                               .stPdsgStatNm(state.getStPdsgStatNm())
+                               .wtPdsgStatNm(state.getWtPdsgStatNm())
+                               .nePdsgStatNm(state.getNePdsgStatNm())
+                               .sePdsgStatNm(state.getSePdsgStatNm())
+                               .swPdsgStatNm(state.getSwPdsgStatNm())
+                               .nwPdsgStatNm(state.getNwPdsgStatNm());
                     }
                     return builder.build();
                 })
                 .toList();
-    }
-
-    private SignalState resolveSignalStateFromSpbi(SpbiResponse spbi) {
-        String[] statNames = {
-                spbi.getNtPdsgStatNm(), spbi.getEtPdsgStatNm(),
-                spbi.getStPdsgStatNm(), spbi.getWtPdsgStatNm(),
-                spbi.getNePdsgStatNm(), spbi.getSePdsgStatNm(),
-                spbi.getSwPdsgStatNm(), spbi.getNwPdsgStatNm()
-        };
-        boolean allNull = true;
-        for (String stat : statNames) {
-            if (stat == null) continue;
-            allNull = false;
-            if (stat.equals("permissive-Movement-Allowed") || stat.equals("protected-Movement-Allowed")) {
-                return SignalState.GREEN;
-            }
-        }
-        return allNull ? SignalState.UNKNOWN : SignalState.RED;
     }
 }

@@ -13,6 +13,13 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BusStopNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBusStopNotFound(BusStopNotFoundException e) {
+        log.warn("[Exception] BusStopNotFoundException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("BUS_STOP_NOT_FOUND", e.getMessage()));
+    }
+
     @ExceptionHandler(RouteNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleRouteNotFound(RouteNotFoundException e) {
         log.warn("[Exception] RouteNotFoundException: {}", e.getMessage());

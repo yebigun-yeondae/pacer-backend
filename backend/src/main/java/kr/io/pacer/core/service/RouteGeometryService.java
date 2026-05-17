@@ -36,7 +36,7 @@ public class RouteGeometryService {
 
     @Cacheable(
             value = "routes",
-            key = "#userId + ':' + #req.origin.lat + ':' + #req.origin.lng + ':' + #req.destination.lat + ':' + #req.destination.lng + ':' + #req.waypoints.![lat + ',' + lng]"
+            key = "#userId + ':' + #req.mode + ':' + #req.origin.lat + ':' + #req.origin.lng + ':' + #req.destination.lat + ':' + #req.destination.lng + ':' + #req.waypoints.![lat + ',' + lng]"
     )
     public CachedRoute fetch(RouteRequest req, UUID userId) {
         double userSpeed = profileRepository.findByUserId(userId)
