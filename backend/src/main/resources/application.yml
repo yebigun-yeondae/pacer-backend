@@ -35,6 +35,9 @@ cits:
 valhalla:
   url: ${VALHALLA_URL}
 
+ai:
+  api-url: ${AI_API_URL}
+
 bus-stop:
   api-url: https://apis.data.go.kr/1613000/BusSttnInfoInqireService/getSttnNoList
   api-key: ${BUS_STOP_API_KEY}
