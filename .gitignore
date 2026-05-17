@@ -4,6 +4,5 @@ prometheus-local.yml
 .env
 pacer_map_data/
 .claude/
-init.sql
-intersections.csv
 CLAUDE.md
+.idea
