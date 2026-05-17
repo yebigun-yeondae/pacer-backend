@@ -20,4 +20,12 @@ public class SignalResponse {
     private Double sePdsgRmdrCs;
     private Double swPdsgRmdrCs;
     private Double nwPdsgRmdrCs;
+    private String ntPdsgStatNm;
+    private String etPdsgStatNm;
+    private String stPdsgStatNm;
+    private String wtPdsgStatNm;
+    private String nePdsgStatNm;
+    private String sePdsgStatNm;
+    private String swPdsgStatNm;
+    private String nwPdsgStatNm;
 }

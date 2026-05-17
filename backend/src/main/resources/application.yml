@@ -29,6 +29,7 @@ jwt:
 
 cits:
   api-url: ${CITS_API_URL}
+  state-api-url: ${CITS_STATE_API_URL}
   api-key: ${CITS_API_KEY}
 
 valhalla:
