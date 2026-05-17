@@ -7,10 +7,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,34 +30,29 @@ public class CitsSpbiClient {
     }
 
     public Map<Integer, SpbiResponse> fetchAll(List<Integer> itstIds) {
-        List<CompletableFuture<SpbiResponse>> futures = itstIds.stream()
-                .map(id -> CompletableFuture.supplyAsync(() -> fetch(id)))
-                .toList();
-
-        return futures.stream()
-                .map(CompletableFuture::join)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(SpbiResponse::getItstIdAsInt, item -> item));
-    }
-
-    private SpbiResponse fetch(int itstId) {
         try {
             List<SpbiResponse> list = restClient.get()
                     .uri(uri -> uri
                             .queryParam("apikey", apiKey)
                             .queryParam("type", "json")
-                            .queryParam("numOfRows", 1)
+                            .queryParam("numOfRows", 200)
                             .queryParam("pageNo", 1)
-                            .queryParam("itstId", itstId)
                             .build())
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});
 
-            if (list == null || list.isEmpty()) return null;
-            return list.get(0);
+            if (list == null || list.isEmpty()) return Map.of();
+
+            Set<Integer> idSet = new HashSet<>(itstIds);
+            return list.stream()
+                    .filter(r -> {
+                        try { return idSet.contains(r.getItstIdAsInt()); }
+                        catch (NumberFormatException e) { return false; }
+                    })
+                    .collect(Collectors.toMap(SpbiResponse::getItstIdAsInt, r -> r, (a, b) -> b));
         } catch (Exception e) {
-            log.warn("[CITS] 신호상태 조회 실패 itstId={} error={}", itstId, e.getMessage());
-            return null;
+            log.warn("[CITS] 전체 신호상태 조회 실패 error={}", e.getMessage());
+            return Map.of();
         }
     }
 }
