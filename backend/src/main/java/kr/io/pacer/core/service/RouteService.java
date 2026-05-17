@@ -8,10 +8,12 @@ import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.external.SpatStateResponse;
+import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
+import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
 import kr.io.pacer.core.repository.jpa.RouteHistoryRepository;
 import kr.io.pacer.core.repository.jpa.UserRepository;
@@ -34,6 +36,7 @@ public class RouteService {
     private final RouteGeometryService routeGeometryService;
     private final CitsSpatClient citsSpatClient;
     private final CitsSpatStateClient citsSpatStateClient;
+    private final SignalCycleRepository signalCycleRepository;
     private final PedestrianProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final RouteHistoryRepository historyRepository;
@@ -50,13 +53,14 @@ public class RouteService {
         List<Integer> itstIds = cached.intersections().stream().map(IntersectionInfo::itstId).toList();
         Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
         Map<Integer, SpatStateResponse> stateMap = itstIds.isEmpty() ? Map.of() : citsSpatStateClient.fetchAll(itstIds);
+        Map<Integer, Map<String, SignalCycle>> cycleMap = signalCycleRepository.findByItstIds(itstIds);
 
         cached.intersections().stream()
                 .filter(i -> !spatMap.containsKey(i.itstId()))
                 .forEach(i -> log.warn("[CITS] 신호 데이터 누락 itstId={} name={}", i.itstId(), i.name()));
 
         List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(cached.intersections(), spatMap, cached.totalTimeSec());
-        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, stateMap);
+        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(cached.intersections(), spatMap, stateMap, cycleMap);
 
         int signalStops = (int) checkpoints.stream()
                 .filter(c -> c.getSignalState() == SignalState.RED).count();
@@ -107,7 +111,8 @@ public class RouteService {
     private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(
             List<IntersectionInfo> intersections,
             Map<Integer, SpatResponse> spatMap,
-            Map<Integer, SpatStateResponse> stateMap) {
+            Map<Integer, SpatStateResponse> stateMap,
+            Map<Integer, Map<String, SignalCycle>> cycleMap) {
 
         return intersections.stream()
                 .map(i -> {
@@ -141,6 +146,12 @@ public class RouteService {
                                .swPdsgStatNm(state.getSwPdsgStatNm())
                                .nwPdsgStatNm(state.getNwPdsgStatNm());
                     }
+
+                    Map<String, SignalCycle> cycles = cycleMap.get(i.itstId());
+                    if (cycles != null) {
+                        builder.signalCycles(cycles);
+                    }
+
                     return builder.build();
                 })
                 .toList();
