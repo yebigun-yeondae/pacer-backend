@@ -96,7 +96,7 @@ public class RouteService {
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
                             .signalState(state)
-                            .recommendedPace(RecommendedPace.NORMAL)
+                            .recommendedPace(state == SignalState.GREEN ? RecommendedPace.NORMAL : RecommendedPace.SPEED_UP)
                             .build();
                 })
                 .toList();

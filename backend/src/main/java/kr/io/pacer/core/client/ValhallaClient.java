@@ -54,7 +54,7 @@ public class ValhallaClient {
         body.put("locations", locations);
         body.put("costing", "pedestrian");
         body.put("costing_options", Map.of("pedestrian", pedestrianOptions));
-        body.put("shape_format", "polyline5");
+        body.put("shape_format", "polyline6");
         body.put("directions_options", Map.of("language", "ko-KR"));
 
         try {
