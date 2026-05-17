@@ -67,7 +67,7 @@ public class BusStopApiClient {
                     ? response.getResponse().getBody()
                     : null;
         } catch (Exception e) {
-            log.error("[BusStop] 페이지 조회 실패 | cityCode={} page={} error={}", cityCode, pageNo, e.getMessage());
+            log.debug("[BusStop] 페이지 조회 실패 | cityCode={} page={} error={}", cityCode, pageNo, e.getMessage());
             return null;
         }
     }
