@@ -12,11 +12,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 public class CitsSpatClient {
+
+    private static final Executor SPAT_IO_EXECUTOR = Executors.newFixedThreadPool(20);
 
     private final RestClient restClient;
     private final String     apiKey;
@@ -36,7 +40,7 @@ public class CitsSpatClient {
 
     public Map<Integer, SpatResponse> fetchAll(List<Integer> itstIds) {
         List<CompletableFuture<SpatResponse>> futures = itstIds.stream()
-                .map(id -> CompletableFuture.supplyAsync(() -> fetch(id)))
+                .map(id -> CompletableFuture.supplyAsync(() -> fetch(id), SPAT_IO_EXECUTOR))
                 .toList();
 
         return futures.stream()
