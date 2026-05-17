@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -72,8 +72,8 @@ class AuthIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
 
-    @MockBean KakaoAuthService kakaoAuthService;
-    @MockBean GoogleAuthService googleAuthService;
+    @MockitoBean KakaoAuthService kakaoAuthService;
+    @MockitoBean GoogleAuthService googleAuthService;
 
     // ── 일반 회원가입 / 로그인 ────────────────────────────────────────────────
 
@@ -228,17 +228,12 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("구글 로그인 → 신규 유저 생성 + 토큰 발급")
     void googleLogin_newUser_createsUserAndReturnsTokens() throws Exception {
-        kr.io.pacer.core.dto.oauth2.AccessTokenDto accessTokenDto =
-                new kr.io.pacer.core.dto.oauth2.AccessTokenDto();
-        ReflectionTestUtils.setField(accessTokenDto, "accessToken", "google-access");
-
         GoogleProfileDto googleProfile = new GoogleProfileDto();
         ReflectionTestUtils.setField(googleProfile, "sub", "google-sub-unique-001");
         ReflectionTestUtils.setField(googleProfile, "name", "구글유저");
         ReflectionTestUtils.setField(googleProfile, "email", "google@integration.test");
         ReflectionTestUtils.setField(googleProfile, "profileImageUrl", "http://img.com/g.jpg");
 
-        given(googleAuthService.getAccessToken(any())).willReturn(accessTokenDto);
         given(googleAuthService.getProfile(any())).willReturn(googleProfile);
 
         mockMvc.perform(post("/api/v1/auth/google")

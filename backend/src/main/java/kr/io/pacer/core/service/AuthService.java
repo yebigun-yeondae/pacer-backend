@@ -11,6 +11,7 @@ import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.request.LoginRequest;
 import kr.io.pacer.core.dto.request.SignupRequest;
 import kr.io.pacer.core.dto.response.TokenResponse;
+import kr.io.pacer.core.exception.AlreadyWithdrawnException;
 import kr.io.pacer.core.exception.DuplicateEmailException;
 import kr.io.pacer.core.exception.InvalidCredentialsException;
 import kr.io.pacer.core.exception.InvalidTokenException;
@@ -20,6 +21,7 @@ import kr.io.pacer.core.repository.jpa.UserOAuthAccountRepository;
 import kr.io.pacer.core.repository.jpa.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,9 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProvider jwtProvider;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${jwt.refresh-token-expire-ms}")
+    private long refreshExpiryMs;
 
     @Transactional
     public TokenResponse signup(SignupRequest request) {
@@ -58,6 +63,10 @@ public class AuthService {
                     log.warn("[Auth] 로그인 실패 - 존재하지 않는 이메일 | email={}", request.getEmail());
                     return new InvalidCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다.");
                 });
+        if (user.isDeleted()) {
+            log.warn("[Auth] 로그인 실패 - 탈퇴한 계정 | userId={}", user.getId());
+            throw new AlreadyWithdrawnException("탈퇴한 계정입니다.");
+        }
         if (user.getPassword() == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             log.warn("[Auth] 로그인 실패 - 비밀번호 불일치 | userId={}", user.getId());
             throw new InvalidCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다.");
@@ -117,7 +126,7 @@ public class AuthService {
     private TokenResponse issueToken(User user) {
         String accessToken  = jwtProvider.createAccessToken(user.getId(), user.getRole());
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
-        refreshTokenRepository.save(new RefreshToken(refreshToken, user.getId()));
+        refreshTokenRepository.save(new RefreshToken(refreshToken, user.getId(), refreshExpiryMs / 1000));
         return new TokenResponse(accessToken, refreshToken);
     }
 
@@ -136,10 +145,16 @@ public class AuthService {
         User user = userRepository.findById(stored.getUserId())
                 .orElseThrow(() -> new IllegalStateException("유저 없음"));
 
+        if (user.isDeleted()) {
+            refreshTokenRepository.delete(stored);
+            log.warn("[Auth] 재발급 실패 - 탈퇴한 계정 | userId={}", user.getId());
+            throw new AlreadyWithdrawnException("탈퇴한 계정입니다.");
+        }
+
         refreshTokenRepository.delete(stored);
         String newAccess  = jwtProvider.createAccessToken(user.getId(), user.getRole());
         String newRefresh = jwtProvider.createRefreshToken(user.getId());
-        refreshTokenRepository.save(new RefreshToken(newRefresh, user.getId()));
+        refreshTokenRepository.save(new RefreshToken(newRefresh, user.getId(), refreshExpiryMs / 1000));
 
         log.info("[Auth] 토큰 재발급 완료 | userId={}", user.getId());
         return new TokenResponse(newAccess, newRefresh);
@@ -151,5 +166,18 @@ public class AuthService {
                     log.info("[Auth] 로그아웃 | userId={}", stored.getUserId());
                     refreshTokenRepository.delete(stored);
                 });
+    }
+
+    @Transactional
+    public void withdraw(UUID userId, String refreshToken) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("유저 없음"));
+        if (user.isDeleted()) {
+            throw new AlreadyWithdrawnException("이미 탈퇴한 계정입니다.");
+        }
+        user.markDeleted();
+        refreshTokenRepository.findById(refreshToken)
+                .ifPresent(refreshTokenRepository::delete);
+        log.info("[Auth] 회원탈퇴 처리 | userId={}", userId);
     }
 }

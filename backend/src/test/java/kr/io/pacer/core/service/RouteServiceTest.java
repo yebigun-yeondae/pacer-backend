@@ -20,6 +20,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import kr.io.pacer.core.domain.RouteHistory;
+import kr.io.pacer.core.dto.response.RouteHistoryResponse;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.data.domain.PageRequest;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,6 +110,37 @@ class RouteServiceTest {
         RouteResponse response = routeService.findRoute(req, userId);
 
         assertThat(response.getTotalTimeSeconds()).isEqualTo(200);
+    }
+
+    // ── 히스토리 조회 ────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("히스토리 조회 - Repository 결과를 DTO로 변환하여 반환")
+    void getHistory_returnsConvertedDtos() {
+        UUID userId = UUID.randomUUID();
+        RouteHistory history = mock(RouteHistory.class);
+        GeometryFactory gf = new GeometryFactory(new PrecisionModel(), 4326);
+        given(history.getOriginGeom()).willReturn(gf.createPoint(new Coordinate(127.0, 37.5)));
+        given(history.getDestinationGeom()).willReturn(gf.createPoint(new Coordinate(127.01, 37.51)));
+        given(historyRepository.findByUserIdOrderByCreatedAtDesc(eq(userId), any()))
+                .willReturn(List.of(history));
+
+        List<RouteHistoryResponse> result = routeService.getHistory(userId, PageRequest.of(0, 20));
+
+        assertThat(result).hasSize(1);
+        then(historyRepository).should().findByUserIdOrderByCreatedAtDesc(eq(userId), any());
+    }
+
+    @Test
+    @DisplayName("히스토리 조회 - 히스토리 없음: 빈 리스트 반환")
+    void getHistory_noHistory_returnsEmptyList() {
+        UUID userId = UUID.randomUUID();
+        given(historyRepository.findByUserIdOrderByCreatedAtDesc(eq(userId), any()))
+                .willReturn(List.of());
+
+        List<RouteHistoryResponse> result = routeService.getHistory(userId, PageRequest.of(0, 20));
+
+        assertThat(result).isEmpty();
     }
 
     // ── 경로 탐색 실패 ────────────────────────────────────────────────────────

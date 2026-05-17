@@ -8,6 +8,8 @@ import kr.io.pacer.core.domain.enums.RouteMode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 public class RouteRequest {
@@ -22,6 +24,9 @@ public class RouteRequest {
     private String destinationName;
 
     private RouteMode mode = RouteMode.BALANCED;
+
+    @Valid
+    private List<Coordinate> waypoints = List.of();
 
     @Getter
     @NoArgsConstructor

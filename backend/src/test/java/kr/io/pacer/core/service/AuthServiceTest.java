@@ -218,7 +218,7 @@ class AuthServiceTest {
     void reissue_validRefreshToken_deletesOldAndReturnsNew() {
         UUID userId = UUID.randomUUID();
         User user = User.of("유저", "user@test.com", null);
-        RefreshToken stored = new RefreshToken("old-refresh", userId);
+        RefreshToken stored = new RefreshToken("old-refresh", userId, 1209600L);
 
         given(jwtProvider.isValid("old-refresh")).willReturn(true);
         given(refreshTokenRepository.findById("old-refresh")).willReturn(Optional.of(stored));
@@ -257,7 +257,7 @@ class AuthServiceTest {
     @DisplayName("로그아웃 - Redis에 있는 토큰: 삭제 처리")
     void logout_existingToken_deletesIt() {
         UUID userId = UUID.randomUUID();
-        RefreshToken stored = new RefreshToken("my-refresh", userId);
+        RefreshToken stored = new RefreshToken("my-refresh", userId, 1209600L);
         given(refreshTokenRepository.findById("my-refresh")).willReturn(Optional.of(stored));
 
         authService.logout("my-refresh");

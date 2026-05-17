@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.io.pacer.core.auth.JwtFilter;
 import kr.io.pacer.core.config.SecurityConfig;
 import kr.io.pacer.core.config.TestSecurityConfig;
-import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.response.TokenResponse;
@@ -18,12 +17,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,9 +43,9 @@ class AuthControllerTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
 
-    @MockBean KakaoAuthService kakaoAuthService;
-    @MockBean GoogleAuthService googleAuthService;
-    @MockBean AuthService authService;
+    @MockitoBean KakaoAuthService kakaoAuthService;
+    @MockitoBean GoogleAuthService googleAuthService;
+    @MockitoBean AuthService authService;
 
     // ── 일반 회원가입 ──────────────────────────────────────────────────────────
 
@@ -183,10 +181,6 @@ class AuthControllerTest {
     @Test
     @DisplayName("POST /api/v1/auth/google - 정상: 200 + 토큰 반환")
     void googleLogin_validRequest_returns200WithTokens() throws Exception {
-        AccessTokenDto accessTokenDto = new AccessTokenDto();
-        ReflectionTestUtils.setField(accessTokenDto, "accessToken", "google-access");
-
-        given(googleAuthService.getAccessToken(any())).willReturn(accessTokenDto);
         given(googleAuthService.getProfile(any())).willReturn(new GoogleProfileDto());
         given(authService.loginWithGoogle(any())).willReturn(new TokenResponse("access", "refresh"));
 
