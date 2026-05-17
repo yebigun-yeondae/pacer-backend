@@ -5,4 +5,4 @@ prometheus-local.yml
 pacer_map_data/
 .claude/
 CLAUDE.md
-.idea
+.idea/
