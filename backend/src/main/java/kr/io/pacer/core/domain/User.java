@@ -39,6 +39,16 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    private LocalDateTime deletedAt;
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
+
+    public void markDeleted() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
     public void update(String nickname, String profileImageUrl) {
         this.nickname = nickname;
         this.profileImageUrl = profileImageUrl;

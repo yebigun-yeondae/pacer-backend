@@ -228,17 +228,12 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("구글 로그인 → 신규 유저 생성 + 토큰 발급")
     void googleLogin_newUser_createsUserAndReturnsTokens() throws Exception {
-        kr.io.pacer.core.dto.oauth2.AccessTokenDto accessTokenDto =
-                new kr.io.pacer.core.dto.oauth2.AccessTokenDto();
-        ReflectionTestUtils.setField(accessTokenDto, "accessToken", "google-access");
-
         GoogleProfileDto googleProfile = new GoogleProfileDto();
         ReflectionTestUtils.setField(googleProfile, "sub", "google-sub-unique-001");
         ReflectionTestUtils.setField(googleProfile, "name", "구글유저");
         ReflectionTestUtils.setField(googleProfile, "email", "google@integration.test");
         ReflectionTestUtils.setField(googleProfile, "profileImageUrl", "http://img.com/g.jpg");
 
-        given(googleAuthService.getAccessToken(any())).willReturn(accessTokenDto);
         given(googleAuthService.getProfile(any())).willReturn(googleProfile);
 
         mockMvc.perform(post("/api/v1/auth/google")

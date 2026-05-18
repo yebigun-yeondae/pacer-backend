@@ -13,6 +13,13 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BusStopNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBusStopNotFound(BusStopNotFoundException e) {
+        log.warn("[Exception] BusStopNotFoundException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("BUS_STOP_NOT_FOUND", e.getMessage()));
+    }
+
     @ExceptionHandler(RouteNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleRouteNotFound(RouteNotFoundException e) {
         log.warn("[Exception] RouteNotFoundException: {}", e.getMessage());
@@ -32,6 +39,13 @@ public class GlobalExceptionHandler {
         log.warn("[Exception] FavoriteNotOwnedException: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ErrorResponse("FAVORITE_NOT_OWNED", e.getMessage()));
+    }
+
+    @ExceptionHandler(AlreadyWithdrawnException.class)
+    public ResponseEntity<ErrorResponse> handleAlreadyWithdrawn(AlreadyWithdrawnException e) {
+        log.warn("[Exception] AlreadyWithdrawnException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ErrorResponse("ALREADY_WITHDRAWN", e.getMessage()));
     }
 
     @ExceptionHandler(InvalidTokenException.class)

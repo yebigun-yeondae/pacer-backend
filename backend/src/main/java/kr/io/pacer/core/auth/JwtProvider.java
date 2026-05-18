@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import kr.io.pacer.core.domain.enums.UserRole;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -25,8 +26,11 @@ public class JwtProvider {
     @Value("${jwt.refresh-token-expire-ms}")
     private long refreshExpiryMs;
 
-    private SecretKey key() {
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    private SecretKey key;
+
+    @PostConstruct
+    private void init() {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String createAccessToken(UUID userId, UserRole role) {
@@ -35,7 +39,7 @@ public class JwtProvider {
                 .claim("role", role.name())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessExpiryMs))
-                .signWith(key())
+                .signWith(key)
                 .compact();
     }
 
@@ -44,13 +48,13 @@ public class JwtProvider {
                 .subject(userId.toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiryMs))
-                .signWith(key())
+                .signWith(key)
                 .compact();
     }
 
     public Claims parse(String token) {
         return Jwts.parser()
-                .verifyWith(key())
+                .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

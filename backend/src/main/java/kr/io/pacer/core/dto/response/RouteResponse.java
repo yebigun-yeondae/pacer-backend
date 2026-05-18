@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Builder
@@ -38,6 +39,24 @@ public class RouteResponse {
         private Double sePdsgRmdrCs;
         private Double swPdsgRmdrCs;
         private Double nwPdsgRmdrCs;
+        private String ntPdsgStatNm;
+        private String etPdsgStatNm;
+        private String stPdsgStatNm;
+        private String wtPdsgStatNm;
+        private String nePdsgStatNm;
+        private String sePdsgStatNm;
+        private String swPdsgStatNm;
+        private String nwPdsgStatNm;
+        private Map<String, SignalCycle> signalCycles;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SignalCycle {
+        private Double redMaxSec;
+        private Double greenMaxSec;
     }
 
     @Getter

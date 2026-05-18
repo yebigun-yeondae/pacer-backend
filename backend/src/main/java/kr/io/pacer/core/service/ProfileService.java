@@ -48,6 +48,7 @@ public class ProfileService {
                     double rawSpeed = s.getDistanceM() / s.getDurationS();
                     return rawSpeed / (1 - s.getSlopeDeg() * 0.02);
                 })
+                .filter(v -> Double.isFinite(v) && v > 0)
                 .average()
                 .orElse(1.4);
 

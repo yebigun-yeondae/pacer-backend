@@ -1,6 +1,6 @@
 package kr.io.pacer.core.client;
 
-import kr.io.pacer.core.dto.external.SpatResponse;
+import kr.io.pacer.core.dto.external.SpatStateResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -18,15 +18,15 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-public class CitsSpatClient {
+public class CitsSpatStateClient {
 
-    private static final Executor SPAT_IO_EXECUTOR = Executors.newFixedThreadPool(20);
+    private static final Executor STATE_IO_EXECUTOR = Executors.newFixedThreadPool(20);
 
     private final RestClient restClient;
     private final String     apiKey;
 
-    public CitsSpatClient(
-            @Value("${cits.api-url}") String apiUrl,
+    public CitsSpatStateClient(
+            @Value("${cits.state-api-url}") String apiUrl,
             @Value("${cits.api-key}") String apiKey) {
         this.apiKey = apiKey;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -38,25 +38,22 @@ public class CitsSpatClient {
                 .build();
     }
 
-    public Map<Integer, SpatResponse> fetchAll(List<Integer> itstIds) {
-        List<CompletableFuture<SpatResponse>> futures = itstIds.stream()
-                .map(id -> CompletableFuture.supplyAsync(() -> fetch(id), SPAT_IO_EXECUTOR))
+    public Map<Integer, SpatStateResponse> fetchAll(List<Integer> itstIds) {
+        List<CompletableFuture<SpatStateResponse>> futures = itstIds.stream()
+                .map(id -> CompletableFuture.supplyAsync(() -> fetch(id), STATE_IO_EXECUTOR))
                 .toList();
 
         return futures.stream()
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(SpatResponse::getItstIdAsInt, item -> item, (a, b) -> a));
+                .collect(Collectors.toMap(SpatStateResponse::getItstIdAsInt, item -> item, (a, b) -> a));
     }
 
-    private SpatResponse fetch(int itstId) {
+    private SpatStateResponse fetch(int itstId) {
         try {
-            List<SpatResponse> list = restClient.get()
+            List<SpatStateResponse> list = restClient.get()
                     .uri(uri -> uri
                             .queryParam("apikey", apiKey)
-                            .queryParam("type", "json")
-                            .queryParam("numOfRows", 1)
-                            .queryParam("pageNo", 1)
                             .queryParam("itstId", itstId)
                             .build())
                     .retrieve()
@@ -65,7 +62,7 @@ public class CitsSpatClient {
             if (list == null || list.isEmpty()) return null;
             return list.get(0);
         } catch (Exception e) {
-            log.warn("[CITS] 신호 조회 실패 itstId={} error={}", itstId, e.getMessage());
+            log.warn("[CITS-State] 신호상태 조회 실패 itstId={} error={}", itstId, e.getMessage());
             return null;
         }
     }
