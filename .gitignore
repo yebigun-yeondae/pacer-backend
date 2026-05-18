@@ -3,3 +3,4 @@ nginx/conf.d/default-local.conf
 prometheus-local.yml
 .env
 pacer_map_data/
+.idea/
