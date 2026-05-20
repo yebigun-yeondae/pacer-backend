@@ -140,12 +140,12 @@ public class RouteService {
                     .toList();
 
             List<AiRouteRequest.Crosswalk> crosswalks = route.intersections().stream()
-                    .map(i -> {
-                        SpatResponse spat = spatMap.get(i.itstId());
-                        Map<String, SignalCycle> cycles = cycleMap.get(i.itstId());
+                    .map(intersection -> {
+                        SpatResponse spat = spatMap.get(intersection.itstId());
+                        Map<String, SignalCycle> cycles = cycleMap.get(intersection.itstId());
                         return AiRouteRequest.Crosswalk.builder()
-                                .crosswalkId(String.valueOf(i.itstId()))
-                                .distanceFromStart(i.fraction() * route.totalDistanceM())
+                                .crosswalkId(String.valueOf(intersection.itstId()))
+                                .distanceFromStart(intersection.fraction() * route.totalDistanceM())
                                 .signal(AiRouteRequest.Signal.builder()
                                         .phase(resolvePhase(spat))
                                         .remainingSeconds(resolveRemaining(spat))
