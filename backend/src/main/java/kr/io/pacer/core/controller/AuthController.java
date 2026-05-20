@@ -1,7 +1,6 @@
 package kr.io.pacer.core.controller;
 
 import jakarta.validation.Valid;
-import kr.io.pacer.core.dto.oauth2.AccessTokenDto;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.request.GoogleLoginRequest;
@@ -15,7 +14,10 @@ import kr.io.pacer.core.service.KakaoAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -50,8 +52,7 @@ public class AuthController {
     public ResponseEntity<TokenResponse> googleLogin(
             @RequestBody @Valid GoogleLoginRequest request) {
 
-        AccessTokenDto accessToken = googleAuthService.getAccessToken(request.getAccessToken());
-        GoogleProfileDto profile = googleAuthService.getProfile(accessToken.getAccessToken());
+        GoogleProfileDto profile = googleAuthService.getProfile(request.getAccessToken());
         return ResponseEntity.ok(authService.loginWithGoogle(profile));
     }
 
@@ -65,6 +66,15 @@ public class AuthController {
     public ResponseEntity<Void> logout(
             @RequestHeader("Refresh-Token") String refreshToken) {
         authService.logout(refreshToken);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/withdraw") // 회원탈퇴
+    public ResponseEntity<Void> withdraw(
+            @RequestHeader("Refresh-Token") String refreshToken,
+            Authentication authentication) {
+        UUID userId = (UUID) authentication.getPrincipal();
+        authService.withdraw(userId, refreshToken);
         return ResponseEntity.noContent().build();
     }
 }

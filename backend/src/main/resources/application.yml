@@ -5,6 +5,11 @@ spring:
     active: dev
   config:
     import: optional:file:.env[.properties]
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
 
 oauth:
   google:
@@ -24,10 +29,17 @@ jwt:
 
 cits:
   api-url: ${CITS_API_URL}
+  state-api-url: ${CITS_STATE_API_URL}
   api-key: ${CITS_API_KEY}
 
 valhalla:
   url: ${VALHALLA_URL}
+
+bus-stop:
+  api-url: https://apis.data.go.kr/1613000/BusSttnInfoInqireService/getSttnNoList
+  api-key: ${BUS_STOP_API_KEY}
+  city-codes: ${BUS_STOP_CITY_CODES:11,25,26,27,28,29,30,36,41,42,43,44,45,46,47,48,50}
+  page-size: 1000
 
 management:
   endpoints:

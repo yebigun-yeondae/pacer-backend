@@ -1,36 +1,30 @@
 package kr.io.pacer.core.repository.jpa;
 
-import kr.io.pacer.core.domain.FavoritePlace;
+import kr.io.pacer.core.domain.BusStop;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
-public interface FavoritePlaceRepository extends JpaRepository<FavoritePlace, UUID> {
-
-    List<FavoritePlace> findByUserIdOrderByVisitCountDesc(UUID userId);
-    void deleteByUserId(UUID userId);
+public interface BusStopRepository extends JpaRepository<BusStop, String> {
 
     @Query(value = """
-            SELECT * FROM favorite_places
-            WHERE user_id = :userId
-            AND ST_DWithin(
+            SELECT * FROM bus_stops
+            WHERE ST_DWithin(
                 geom::geography,
                 ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-                :distanceM
+                :radiusM
             )
             ORDER BY ST_Distance(
                 geom::geography,
                 ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
             )
-            LIMIT 1
             """, nativeQuery = true)
-    Optional<FavoritePlace> findNearestWithinDistance(
-            @Param("userId") UUID userId,
+    List<BusStop> findNearby(
             @Param("lat") double lat,
             @Param("lng") double lng,
-            @Param("distanceM") double distanceM);
+            @Param("radiusM") double radiusM);
+
+    List<BusStop> findByNameContainingIgnoreCase(String keyword);
 }

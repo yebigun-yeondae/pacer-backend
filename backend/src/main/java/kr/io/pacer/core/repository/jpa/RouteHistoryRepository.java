@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface RouteHistoryRepository extends JpaRepository<RouteHistory, UUID> {
 
     List<RouteHistory> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    void deleteByUserId(UUID userId);
 }
