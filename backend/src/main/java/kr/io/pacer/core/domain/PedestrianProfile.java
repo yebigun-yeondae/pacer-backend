@@ -26,6 +26,7 @@ public class PedestrianProfile {
     private double uphillFactor   = 0.8;
     private double downhillFactor = 1.1;
     private int    totalRoutes    = 0;
+    @Column(name = "total_distance_m")
     private double totalDistanceM = 0.0;
 
     @UpdateTimestamp
