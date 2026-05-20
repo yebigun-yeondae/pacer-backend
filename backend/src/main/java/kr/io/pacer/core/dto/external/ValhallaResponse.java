@@ -12,6 +12,7 @@ import java.util.List;
 public class ValhallaResponse {
 
     private Trip trip;
+    private List<AlternateRoute> alternates;
 
     @Getter
     @NoArgsConstructor
@@ -35,5 +36,12 @@ public class ValhallaResponse {
     public static class Summary {
         private double time;   // 초
         private double length; // km
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AlternateRoute {
+        private Trip trip;
     }
 }

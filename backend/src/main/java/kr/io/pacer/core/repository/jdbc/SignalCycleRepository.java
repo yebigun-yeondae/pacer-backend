@@ -22,8 +22,8 @@ public class SignalCycleRepository {
         String placeholders = String.join(",", Collections.nCopies(itstIds.size(), "?"));
         String sql = """
                 SELECT itst_id, direction,
-                       NULLIF(ROUND(CAST(SUM(CASE WHEN state != 'stop-And-Remain' THEN max_seconds ELSE 0 END) AS numeric), 2), 0) AS green_avg_sec,
-                       ROUND(CAST(MAX(CASE WHEN state = 'stop-And-Remain' THEN max_seconds END) AS numeric), 2) AS red_avg_sec
+                       NULLIF(ROUND(CAST(SUM(CASE WHEN state != 'stop-And-Remain' THEN cycle_seconds ELSE 0 END) AS numeric), 2), 0) AS green_avg_sec,
+                       ROUND(CAST(MAX(CASE WHEN state = 'stop-And-Remain' THEN cycle_seconds END) AS numeric), 2) AS red_avg_sec
                 FROM signal_cycle_stat
                 WHERE itst_id IN (%s)
                   AND signal_type = 'pdsg'

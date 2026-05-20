@@ -31,10 +31,10 @@ public class ValhallaClient {
                 .build();
     }
 
-    public ValhallaResponse route(double originLat, double originLng,
-                                  double destLat, double destLng,
-                                  List<double[]> waypoints,
-                                  RouteMode mode, double walkingSpeedMps) {
+    public List<ValhallaResponse.Trip> route(double originLat, double originLng,
+                                             double destLat, double destLng,
+                                             List<double[]> waypoints,
+                                             RouteMode mode, double walkingSpeedMps) {
         double walkingSpeedKmh = Math.round(walkingSpeedMps * 3.6 * 10.0) / 10.0;
 
         Map<String, Object> pedestrianOptions = new HashMap<>();
@@ -56,6 +56,7 @@ public class ValhallaClient {
         body.put("costing_options", Map.of("pedestrian", pedestrianOptions));
         body.put("shape_format", "polyline6");
         body.put("directions_options", Map.of("language", "ko-KR"));
+        body.put("alternates", 2);
 
         try {
             ValhallaResponse response = restClient.post()
@@ -70,7 +71,16 @@ public class ValhallaClient {
                     || response.getTrip().getLegs().isEmpty()) {
                 throw new RouteNotFoundException("경로를 찾을 수 없습니다.");
             }
-            return response;
+
+            List<ValhallaResponse.Trip> trips = new ArrayList<>();
+            trips.add(response.getTrip());
+            if (response.getAlternates() != null) {
+                response.getAlternates().stream()
+                        .filter(a -> a.getTrip() != null)
+                        .map(ValhallaResponse.AlternateRoute::getTrip)
+                        .forEach(trips::add);
+            }
+            return trips;
         } catch (RouteNotFoundException e) {
             throw e;
         } catch (Exception e) {
