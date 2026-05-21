@@ -41,6 +41,7 @@ public class RouteHistory {
     private String encodedPolyline;
 
     private int    totalTimeSec;
+    @Column(name = "total_distance_m")
     private double totalDistanceM;
     private int    signalStops;
 
