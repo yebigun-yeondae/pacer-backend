@@ -1,17 +1,22 @@
 package kr.io.pacer.core.service;
 
+import kr.io.pacer.core.client.AiRouteClient;
 import kr.io.pacer.core.client.CitsSpatClient;
+import kr.io.pacer.core.client.CitsSpatStateClient;
 import kr.io.pacer.core.domain.User;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
+import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.exception.RouteNotFoundException;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
+import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
 import kr.io.pacer.core.repository.jpa.RouteHistoryRepository;
 import kr.io.pacer.core.repository.jpa.UserRepository;
 import kr.io.pacer.core.service.RouteGeometryService.CachedRoute;
+import kr.io.pacer.core.util.PolylineEncoder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +47,10 @@ class RouteServiceTest {
     @InjectMocks RouteService routeService;
     @Mock RouteGeometryService routeGeometryService;
     @Mock CitsSpatClient citsSpatClient;
+    @Mock CitsSpatStateClient citsSpatStateClient;
+    @Mock SignalCycleRepository signalCycleRepository;
+    @Mock AiRouteClient aiRouteClient;
+    @Mock PolylineEncoder polylineEncoder;
     @Mock PedestrianProfileRepository profileRepository;
     @Mock UserRepository userRepository;
     @Mock RouteHistoryRepository historyRepository;
@@ -56,7 +65,7 @@ class RouteServiceTest {
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
         CachedRoute cached = new CachedRoute("encodedPolyline", 300, 500.0, List.of());
 
-        given(routeGeometryService.fetch(req, userId)).willReturn(cached);
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
         given(historyRepository.save(any())).willReturn(null);
 
@@ -80,8 +89,10 @@ class RouteServiceTest {
 
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
-        given(routeGeometryService.fetch(req, userId)).willReturn(cached);
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
+        given(citsSpatStateClient.fetchAll(anyList())).willReturn(Map.of());
+        given(signalCycleRepository.findByItstIds(anyList())).willReturn(Map.of());
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
         given(historyRepository.save(any())).willReturn(null);
 
@@ -89,7 +100,7 @@ class RouteServiceTest {
 
         assertThat(response.getSignalCheckpoints()).hasSize(1);
         RouteResponse.SignalCheckpoint checkpoint = response.getSignalCheckpoints().get(0);
-        assertThat(checkpoint.getNodeId()).isEqualTo(101L);
+        assertThat(checkpoint.getNodeId()).isEqualTo(101);
         assertThat(checkpoint.getEtaFromStartSeconds()).isEqualTo(150); // 0.5 * 300
         assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.GREEN);
 
@@ -103,7 +114,7 @@ class RouteServiceTest {
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of());
 
-        given(routeGeometryService.fetch(req, userId)).willReturn(cached);
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
         given(historyRepository.save(any())).willReturn(null);
 
@@ -151,7 +162,7 @@ class RouteServiceTest {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
 
-        given(routeGeometryService.fetch(req, userId))
+        given(routeGeometryService.fetchAll(req, userId))
                 .willThrow(new RouteNotFoundException("경로를 찾을 수 없습니다."));
 
         assertThatThrownBy(() -> routeService.findRoute(req, userId))
