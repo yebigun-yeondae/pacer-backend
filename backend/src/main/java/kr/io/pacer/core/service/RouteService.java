@@ -111,7 +111,11 @@ public class RouteService {
 
             String optimalId = aiResponse.getOptimalRouteId(); // "route_001"
             int index = Integer.parseInt(optimalId.replace("route_", "")) - 1;
-            return candidates.get(Math.max(0, Math.min(index, candidates.size() - 1)));
+            if (index < 0 || index >= candidates.size()) {
+                log.warn("[AI] 유효하지 않은 경로 인덱스 | optimalId={} candidateSize={}", optimalId, candidates.size());
+                return candidates.get(0);
+            }
+            return candidates.get(index);
         } catch (Exception e) {
             log.warn("[AI] 경로 선택 실패, 첫 번째 경로 사용: {}", e.getMessage());
             return candidates.get(0);
@@ -287,6 +291,7 @@ public class RouteService {
     }
 
     private SignalState resolveSignalState(SpatResponse spat) {
+        if (spat == null) return SignalState.RED;
         boolean hasValidGreen = hasAnyValidPdsg(
                 spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
                 spat.getStPdsgRmdrCs(), spat.getWtPdsgRmdrCs(),

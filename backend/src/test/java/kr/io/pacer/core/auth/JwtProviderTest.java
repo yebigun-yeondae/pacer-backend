@@ -22,6 +22,7 @@ class JwtProviderTest {
                 "test-secret-key-minimum-32-bytes-long!!");
         ReflectionTestUtils.setField(jwtProvider, "accessExpiryMs", 3_600_000L);
         ReflectionTestUtils.setField(jwtProvider, "refreshExpiryMs", 1_209_600_000L);
+        ReflectionTestUtils.invokeMethod(jwtProvider, "init");
     }
 
     @Test

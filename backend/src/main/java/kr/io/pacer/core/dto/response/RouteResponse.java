@@ -64,7 +64,7 @@ public class RouteResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SignalCheckpoint {
-        private long            nodeId;
+        private int             nodeId;
         private double          lat;
         private double          lng;
         private int             etaFromStartSeconds;
