@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -65,9 +67,21 @@ public class RouteService {
                 .distinct()
                 .toList();
 
-        Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
-        Map<Integer, SpatStateResponse> stateMap = itstIds.isEmpty() ? Map.of() : citsSpatStateClient.fetchAll(itstIds);
-        Map<Integer, Map<String, SignalCycle>> cycleMap = signalCycleRepository.findByItstIds(itstIds);
+        CompletableFuture<Map<Integer, SpatResponse>> spatFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> citsSpatClient.fetchAll(itstIds));
+        CompletableFuture<Map<Integer, SpatStateResponse>> stateFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> citsSpatStateClient.fetchAll(itstIds));
+        CompletableFuture<Map<Integer, Map<String, SignalCycle>>> cycleFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> signalCycleRepository.findByItstIds(itstIds));
+
+        CompletableFuture.allOf(spatFuture, stateFuture, cycleFuture).join();
+
+        Map<Integer, SpatResponse> spatMap = spatFuture.join();
+        Map<Integer, SpatStateResponse> stateMap = stateFuture.join();
+        Map<Integer, Map<String, SignalCycle>> cycleMap = cycleFuture.join();
 
         itstIds.stream()
                 .filter(id -> !spatMap.containsKey(id))
@@ -147,14 +161,16 @@ public class RouteService {
                     .map(intersection -> {
                         SpatResponse spat = spatMap.get(intersection.itstId());
                         Map<String, SignalCycle> cycles = cycleMap.get(intersection.itstId());
-                        return AiRouteRequest.Crosswalk.builder()
-                                .crosswalkId(String.valueOf(intersection.itstId()))
-                                .distanceFromStart(intersection.fraction() * route.totalDistanceM())
-                                .signal(AiRouteRequest.Signal.builder()
+                        AiRouteRequest.Signal signal = spat == null ? null :
+                                AiRouteRequest.Signal.builder()
                                         .phase(resolvePhase(spat))
                                         .remainingSeconds(resolveRemaining(spat))
                                         .cycleSeconds(resolveCycle(cycles))
-                                        .build())
+                                        .build();
+                        return AiRouteRequest.Crosswalk.builder()
+                                .crosswalkId(String.valueOf(intersection.itstId()))
+                                .distanceFromStart(intersection.fraction() * route.totalDistanceM())
+                                .signal(signal)
                                 .build();
                     })
                     .toList();
@@ -213,13 +229,17 @@ public class RouteService {
             Map<Integer, SpatResponse> spatMap,
             int totalTimeSec) {
 
-        return intersections.stream()
+        List<IntersectionInfo> filtered = intersections.stream()
                 .filter(i -> spatMap.containsKey(i.itstId()))
-                .map(i -> {
+                .toList();
+        return IntStream.range(0, filtered.size())
+                .mapToObj(idx -> {
+                    IntersectionInfo i = filtered.get(idx);
                     SpatResponse spat = spatMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
                     SignalState state = resolveSignalState(spat);
                     return RouteResponse.SignalCheckpoint.builder()
+                            .order(idx + 1)
                             .nodeId(i.itstId())
                             .lat(i.lat())
                             .lng(i.lng())
@@ -237,10 +257,12 @@ public class RouteService {
             Map<Integer, SpatStateResponse> stateMap,
             Map<Integer, Map<String, SignalCycle>> cycleMap) {
 
-        return intersections.stream()
-                .map(i -> {
+        return IntStream.range(0, intersections.size())
+                .mapToObj(idx -> {
+                    IntersectionInfo i = intersections.get(idx);
                     RouteResponse.IntersectionSignal.IntersectionSignalBuilder builder =
                             RouteResponse.IntersectionSignal.builder()
+                                    .order(idx + 1)
                                     .itstId(i.itstId())
                                     .name(i.name())
                                     .lat(i.lat())
