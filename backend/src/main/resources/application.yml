@@ -8,7 +8,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-    baseline-version: 1
+    baseline-version: 0
     locations: classpath:db/migration
 
 oauth:
@@ -34,6 +34,9 @@ cits:
 
 valhalla:
   url: ${VALHALLA_URL}
+
+ai:
+  api-url: ${AI_API_URL}
 
 bus-stop:
   api-url: https://apis.data.go.kr/1613000/BusSttnInfoInqireService/getSttnNoList

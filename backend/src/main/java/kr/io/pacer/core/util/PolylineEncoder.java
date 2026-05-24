@@ -53,7 +53,7 @@ public class PolylineEncoder {
     }
 
     // Valhalla 기본 포맷인 polyline6 (정밀도 1e-6) 디코더
-    private List<double[]> decode(String encoded) {
+    public List<double[]> decode(String encoded) {
         List<double[]> points = new ArrayList<>();
         int index = 0, lat = 0, lng = 0;
         while (index < encoded.length()) {

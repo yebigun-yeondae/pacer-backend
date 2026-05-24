@@ -1,9 +1,12 @@
 package kr.io.pacer.core.dto.response;
 
+import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.Map;
 
 @Getter
 @Builder
@@ -28,4 +31,5 @@ public class SignalResponse {
     private String sePdsgStatNm;
     private String swPdsgStatNm;
     private String nwPdsgStatNm;
+    private Map<String, SignalCycle> signalCycles;
 }

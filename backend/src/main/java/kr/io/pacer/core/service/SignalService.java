@@ -4,7 +4,9 @@ import kr.io.pacer.core.client.CitsSpatClient;
 import kr.io.pacer.core.client.CitsSpatStateClient;
 import kr.io.pacer.core.dto.external.SpatResponse;
 import kr.io.pacer.core.dto.external.SpatStateResponse;
+import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
 import kr.io.pacer.core.dto.response.SignalResponse;
+import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,6 +23,7 @@ public class SignalService {
 
     private final CitsSpatClient citsSpatClient;
     private final CitsSpatStateClient citsSpatStateClient;
+    private final SignalCycleRepository signalCycleRepository;
     private final JdbcTemplate jdbcTemplate;
 
     public List<SignalResponse> getSignals(List<Integer> itstIds) {
@@ -28,6 +31,7 @@ public class SignalService {
         Map<Integer, String> nameMap = fetchNames(itstIds);
         Map<Integer, SpatResponse> spatMap = citsSpatClient.fetchAll(itstIds);
         Map<Integer, SpatStateResponse> stateMap = citsSpatStateClient.fetchAll(itstIds);
+        Map<Integer, Map<String, SignalCycle>> cycleMap = signalCycleRepository.findByItstIds(itstIds);
 
         return itstIds.stream()
                 .map(id -> {
@@ -52,6 +56,7 @@ public class SignalService {
                             .sePdsgStatNm(state != null ? state.getSePdsgStatNm() : null)
                             .swPdsgStatNm(state != null ? state.getSwPdsgStatNm() : null)
                             .nwPdsgStatNm(state != null ? state.getNwPdsgStatNm() : null)
+                            .signalCycles(cycleMap.get(id))
                             .build();
                 })
                 .toList();

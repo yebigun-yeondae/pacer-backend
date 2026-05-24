@@ -1,45 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+    <!-- [공통 설정] 로그의 디자인(포맷)과 저장할 디렉토리 경로 정의 -->
     <property name="LOG_PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
     <property name="LOG_DIR" value="logs"/>
 
-    <!-- 콘솔 출력 -->
+    <!-- [공통 어펜더] 콘솔 출력 설정 (로컬 터미널 및 서버 stdout에서 실시간 확인용) -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
         </encoder>
     </appender>
 
-    <!-- 파일 출력 (prod 전용) -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_DIR}/pacer.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR}/pacer.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>30</maxHistory>
-        </rollingPolicy>
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-        </encoder>
-    </appender>
-
-    <!-- dev: DEBUG, 콘솔만 -->
+    <!-- ======================================================================= -->
+    <!-- [개발 환경: dev] 로컬 PC 개발용 설정 (파일은 안 만들고 콘솔에 상세히 출력) -->
+    <!-- ======================================================================= -->
     <springProfile name="dev">
+        <!-- pacer 핵심 로직, SQL 쿼리, 쿼리 파라미터 바인딩까지 디버깅을 위해 상세히 기록 -->
         <logger name="kr.io.pacer.core" level="DEBUG"/>
         <logger name="org.hibernate.SQL" level="DEBUG"/>
         <logger name="org.hibernate.orm.jdbc.bind" level="TRACE"/>
+
+        <!-- dev 환경 최상위 로거: INFO 레벨 이상 소스를 오직 콘솔에만 출력 -->
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
 
-    <!-- prod: INFO, 콘솔 + 파일 -->
+    <!-- ======================================================================= -->
+    <!-- [운영 환경: prod] 실제 배포용 설정 (서버 성능을 위해 로그 최소화 및 파일 분리) -->
+    <!-- ======================================================================= -->
     <springProfile name="prod">
+        <!-- pacer 핵심 로직은 운영 상황 모니터링을 위해 INFO 레벨부터 수집 -->
         <logger name="kr.io.pacer.core" level="INFO"/>
+
+        <!-- 1. INFO 파일 어펜더: ERROR를 포함한 모든 주요 흐름(WARN 이상)을 기록 -->
+        <appender name="INFO_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <!-- 현재 활성화되어 쓰이고 있는 로그 파일명 -->
+            <file>${LOG_DIR}/pacer_info.log</file>
+
+            <!-- 보관 정책: 매일 자정에 파일(pacer_info.2026-05-21.log)을 분리하고 최대 30일간 유지 -->
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/pacer_info.%d{yyyy-MM-dd}.log</fileNamePattern>
+                <maxHistory>30</maxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+            </encoder>
+        </appender>
+
+        <!-- 2. ERROR 파일 어펜더: 치명적인 에러(ERROR) 예외 로그만 쏙 골라내서 기록 -->
+        <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <!-- 현재 활성화되어 쓰이고 있는 에러 로그 파일명 -->
+            <file>${LOG_DIR}/pacer_error.log</file>
+
+            <!-- 필터링 설정: ERROR 레벨과 정확히 일치하면 기록(ACCEPT), 아니면 무시(DENY) -->
+            <filter class="ch.qos.logback.classic.filter.LevelFilter">
+                <level>ERROR</level>
+                <onMatch>ACCEPT</onMatch>
+                <onMismatch>DENY</onMismatch>
+            </filter>
+
+            <!-- 보관 정책: 에러 로그도 동일하게 매일 자정에 분리하며 최대 30일간 유지 -->
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_DIR}/pacer_error.%d{yyyy-MM-dd}.log</fileNamePattern>
+                <maxHistory>30</maxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>${LOG_PATTERN}</pattern>
+            </encoder>
+        </appender>
+
+        <!-- prod 환경 최상위 로거: 시스템 전체적으로는 경고(WARN) 레벨 이상의 무거운 로그만 타겟팅 -->
         <root level="WARN">
+            <!-- 수집된 로그를 콘솔창, INFO 파일 저장소, ERROR 파일 저장소 3곳으로 동시에 보냄 -->
             <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE"/>
+            <appender-ref ref="INFO_FILE"/>
+            <appender-ref ref="ERROR_FILE"/>
         </root>
     </springProfile>
 

@@ -1,13 +1,16 @@
 package kr.io.pacer.core.controller;
 
+import jakarta.validation.constraints.DecimalMin;
 import kr.io.pacer.core.dto.response.BusStopResponse;
 import kr.io.pacer.core.service.BusStopService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Validated
 @RestController
 @RequestMapping("/api/v1/bus-stops")
 @RequiredArgsConstructor
@@ -19,7 +22,7 @@ public class BusStopController {
     public ResponseEntity<List<BusStopResponse>> getNearby(
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam(defaultValue = "500") double radiusM) {
+            @DecimalMin("0") @RequestParam(defaultValue = "500") double radiusM) {
         return ResponseEntity.ok(busStopService.findNearby(lat, lng, radiusM));
     }
 

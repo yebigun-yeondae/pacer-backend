@@ -46,7 +46,7 @@ public class CitsSpatClient {
         return futures.stream()
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(SpatResponse::getItstIdAsInt, item -> item));
+                .collect(Collectors.toMap(SpatResponse::getItstIdAsInt, item -> item, (a, b) -> a));
     }
 
     private SpatResponse fetch(int itstId) {

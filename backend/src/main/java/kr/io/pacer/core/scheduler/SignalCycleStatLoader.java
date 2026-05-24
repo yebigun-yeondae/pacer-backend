@@ -24,8 +24,7 @@ import java.sql.Connection;
 public class SignalCycleStatLoader implements ApplicationRunner {
 
     private static final String COPY_CMD =
-            "COPY signal_cycle_stat (direction, itst_id, signal_type, state, " +
-            "avg_seconds, calculated_at, max_seconds, min_seconds, occurrences) FROM STDIN";
+            "COPY signal_cycle_stat (direction, itst_id, signal_type, state, calculated_at, cycle_seconds) FROM STDIN";
 
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
