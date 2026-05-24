@@ -286,16 +286,6 @@ public class RouteService {
                 .toList();
     }
 
-    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
-        List<RouteHistoryResponse> result = historyRepository
-                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
-                .stream()
-                .map(RouteHistoryResponse::from)
-                .toList();
-        log.debug("[Route] 히스토리 조회 | userId={} count={}", userId, result.size());
-        return result;
-    }
-
     private SignalState resolveSignalState(SpatResponse spat) {
         if (spat == null) return SignalState.RED;
         boolean hasValidGreen = hasAnyValidPdsg(

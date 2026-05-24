@@ -32,4 +32,6 @@ public interface FavoritePlaceRepository extends JpaRepository<FavoritePlace, UU
             @Param("lat") double lat,
             @Param("lng") double lng,
             @Param("distanceM") double distanceM);
+
+    void deleteByUserId(UUID userId);
 }

@@ -19,9 +19,11 @@ class PedestrianProfileTest {
     }
 
     @Test
-    @DisplayName("기본 생성 시 평균 속도는 1.4m/s")
-    void createDefault_initialSpeed_is1point4() {
+    @DisplayName("기본 생성 시 초기값 확인")
+    void createDefault_hasCorrectInitialValues() {
         assertThat(profile.getAvgSpeedMps()).isEqualTo(1.4);
+        assertThat(profile.getSpeedStd()).isEqualTo(0.2);
+        assertThat(profile.getTripCount()).isZero();
         assertThat(profile.getTotalRoutes()).isZero();
         assertThat(profile.getTotalDistanceM()).isZero();
     }
@@ -57,26 +59,24 @@ class PedestrianProfileTest {
     }
 
     @Test
-    @DisplayName("updateSpeed: EMA 방식으로 속도 업데이트 (70% 기존 + 30% 신규)")
-    void updateSpeed_appliesEmaFormula() {
-        double measured = 2.0;
-        double expected = 1.4 * 0.7 + 2.0 * 0.3; // 1.58
+    @DisplayName("updateFromAi - updated:true 시 세 필드 모두 갱신")
+    void updateFromAi_updatesAllThreeFields() {
+        profile.updateFromAi(1.6, 0.15, 6);
 
-        profile.updateSpeed(measured);
-
-        assertThat(profile.getAvgSpeedMps()).isCloseTo(expected, within(0.0001));
+        assertThat(profile.getAvgSpeedMps()).isCloseTo(1.6, within(0.0001));
+        assertThat(profile.getSpeedStd()).isCloseTo(0.15, within(0.0001));
+        assertThat(profile.getTripCount()).isEqualTo(6);
     }
 
     @Test
-    @DisplayName("updateSpeed: 연속 업데이트 시 EMA가 누적 반영됨")
-    void updateSpeed_consecutiveCalls_accumulatesEma() {
-        profile.updateSpeed(2.0); // 1.4*0.7 + 2.0*0.3 = 1.58
-        double afterFirst = profile.getAvgSpeedMps();
+    @DisplayName("incrementTripCount - updated:false 시 tripCount만 증가")
+    void incrementTripCount_onlyUpdatesTripCount() {
+        profile.updateFromAi(1.6, 0.15, 4);
+        profile.incrementTripCount(5);
 
-        profile.updateSpeed(1.0); // afterFirst*0.7 + 1.0*0.3
-        double expected = afterFirst * 0.7 + 1.0 * 0.3;
-
-        assertThat(profile.getAvgSpeedMps()).isCloseTo(expected, within(0.0001));
+        assertThat(profile.getTripCount()).isEqualTo(5);
+        assertThat(profile.getAvgSpeedMps()).isCloseTo(1.6, within(0.0001));
+        assertThat(profile.getSpeedStd()).isCloseTo(0.15, within(0.0001));
     }
 
     @Test
