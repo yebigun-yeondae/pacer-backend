@@ -31,15 +31,9 @@ public class ProfileAsyncService {
                     .orElseThrow(() -> new IllegalStateException("프로필 없음: " + userId));
 
             AiProfileUpdateResponse.UpdatedProfile updated = response.getUpdatedProfile();
-            if (response.isUpdated()) {
-                profile.updateFromAi(updated.getAvgSpeed(), updated.getSpeedStd(), updated.getTripCount());
-                log.info("[Profile] AI 프로필 갱신 완료 | userId={} avgSpeed={}m/s tripCount={}",
-                        userId, updated.getAvgSpeed(), updated.getTripCount());
-            } else {
-                profile.incrementTripCount(updated.getTripCount());
-                log.info("[Profile] AI 프로필 스킵 | userId={} reason={} tripCount={}",
-                        userId, response.getSkipReason(), updated.getTripCount());
-            }
+            profile.updateFromAi(updated.getAvgSpeed(), updated.getSpeedStd(), updated.getTripCount());
+            log.info("[Profile] AI 프로필 저장 | userId={} updated={} skipReason={} avgSpeed={}m/s tripCount={}",
+                    userId, response.isUpdated(), response.getSkipReason(), updated.getAvgSpeed(), updated.getTripCount());
 
         } catch (HttpClientErrorException.UnprocessableEntity e) {
             log.error("[Profile] AI 서버 422 에러로 프로필 업데이트 건너뜀 | userId={}", userId);

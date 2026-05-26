@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface SignalCycleRepository extends JpaRepository<SignalCycle, Long> {
+public interface SignalCycleJpaRepository extends JpaRepository<SignalCycle, Long> {
 
     Optional<SignalCycle> findByItstIdAndDirection(Integer itstId, String direction);
 

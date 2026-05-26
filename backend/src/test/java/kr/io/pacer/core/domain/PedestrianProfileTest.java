@@ -69,17 +69,6 @@ class PedestrianProfileTest {
     }
 
     @Test
-    @DisplayName("incrementTripCount - updated:false 시 tripCount만 증가")
-    void incrementTripCount_onlyUpdatesTripCount() {
-        profile.updateFromAi(1.6, 0.15, 4);
-        profile.incrementTripCount(5);
-
-        assertThat(profile.getTripCount()).isEqualTo(5);
-        assertThat(profile.getAvgSpeedMps()).isCloseTo(1.6, within(0.0001));
-        assertThat(profile.getSpeedStd()).isCloseTo(0.15, within(0.0001));
-    }
-
-    @Test
     @DisplayName("recordRoute: 경로 기록 시 총 경로 수와 거리 누적")
     void recordRoute_incrementsCountAndDistance() {
         profile.recordRoute(500.0);

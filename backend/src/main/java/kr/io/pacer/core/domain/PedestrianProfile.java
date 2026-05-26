@@ -52,10 +52,6 @@ public class PedestrianProfile {
         this.tripCount   = tripCount;
     }
 
-    public void incrementTripCount(int tripCount) {
-        this.tripCount = tripCount;
-    }
-
     public void recordRoute(double distanceM) {
         this.totalRoutes++;
         this.totalDistanceM += distanceM;

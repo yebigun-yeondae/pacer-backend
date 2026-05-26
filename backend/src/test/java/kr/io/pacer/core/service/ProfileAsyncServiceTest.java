@@ -51,7 +51,7 @@ class ProfileAsyncServiceTest {
     }
 
     @Test
-    @DisplayName("updated:false(warmup) - trip_count만 증가, 나머지 수치 유지")
+    @DisplayName("updated:false(warmup) - updated_profile 그대로 저장, avg_speed·speed_std 유지 trip_count +1")
     void updateProfileAsync_updatedFalse_warmup_onlyIncrementsTripCount() {
         UUID userId = UUID.randomUUID();
         User user = User.of("테스터", "test@test.com", null);
@@ -72,7 +72,7 @@ class ProfileAsyncServiceTest {
     }
 
     @Test
-    @DisplayName("updated:false(속도범위초과) - trip_count만 증가")
+    @DisplayName("updated:false(actual_speed_out_of_range) - updated_profile 그대로 저장, 원본값 유지")
     void updateProfileAsync_updatedFalse_outOfRange_onlyIncrementsTripCount() {
         UUID userId = UUID.randomUUID();
         User user = User.of("테스터", "test@test.com", null);

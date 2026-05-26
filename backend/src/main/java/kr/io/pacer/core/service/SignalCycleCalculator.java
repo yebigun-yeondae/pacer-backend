@@ -1,7 +1,7 @@
 package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.domain.SignalHistory;
-import kr.io.pacer.core.repository.jpa.SignalCycleRepository;
+import kr.io.pacer.core.repository.jpa.SignalCycleJpaRepository;
 import kr.io.pacer.core.repository.jpa.SignalHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ public class SignalCycleCalculator {
     private static final int HISTORY_LIMIT = 50;
 
     private final SignalHistoryRepository signalHistoryRepository;
-    private final SignalCycleRepository   signalCycleRepository;
+    private final SignalCycleJpaRepository signalCycleRepository;
 
     public void calculate(Integer itstId, String direction) {
         List<SignalHistory> history = signalHistoryRepository
