@@ -54,6 +54,9 @@ public class CitsSpatStateClient {
             List<SpatStateResponse> list = restClient.get()
                     .uri(uri -> uri
                             .queryParam("apikey", apiKey)
+                            .queryParam("type", "json")
+                            .queryParam("numOfRows", 1)
+                            .queryParam("pageNo", 1)
                             .queryParam("itstId", itstId)
                             .build())
                     .retrieve()
