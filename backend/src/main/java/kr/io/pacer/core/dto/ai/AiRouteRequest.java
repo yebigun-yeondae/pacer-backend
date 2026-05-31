@@ -61,6 +61,7 @@ public class AiRouteRequest {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class Crosswalk {
         private String crosswalkId;
+        private Integer intersectionId;
         private double distanceFromStart;
         private Signal signal;
     }

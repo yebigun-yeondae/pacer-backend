@@ -27,6 +27,7 @@ public class RouteResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class IntersectionSignal {
+        private int     order;
         private int     itstId;
         private String  name;
         private double  lat;
@@ -64,6 +65,7 @@ public class RouteResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SignalCheckpoint {
+        private int             order;
         private int             nodeId;
         private double          lat;
         private double          lng;

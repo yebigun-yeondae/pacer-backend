@@ -27,7 +27,7 @@ public class AiRouteClient {
 
     public AiRouteResponse selectRoute(AiRouteRequest request) {
         AiRouteResponse response = restClient.post()
-                .uri("/select-route")
+                .uri("/api/v1/route/optimize")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()

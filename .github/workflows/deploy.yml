@@ -97,6 +97,8 @@ jobs:
             echo "$ENV_FILE_CONTENT" > .env
             chmod 600 .env
 
+            docker network inspect pacer-network >/dev/null 2>&1 || docker network create pacer-network
+
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
             docker compose down || true
             docker pull $REGISTRY/$ECR_REPOSITORY:latest
