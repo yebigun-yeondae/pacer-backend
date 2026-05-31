@@ -15,6 +15,7 @@ import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
+import kr.io.pacer.core.repository.jdbc.RouteRepository.CrosswalkInfo;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
@@ -31,9 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -62,8 +65,10 @@ public class RouteService {
         List<CachedRoute> candidates = routeGeometryService.fetchAll(req, userId);
 
         List<Integer> itstIds = candidates.stream()
-                .flatMap(r -> r.intersections().stream())
-                .map(IntersectionInfo::itstId)
+                .flatMap(r -> Stream.concat(
+                        r.intersections().stream().map(IntersectionInfo::itstId),
+                        r.crosswalks().stream().map(CrosswalkInfo::itstId)))
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
 
@@ -157,10 +162,11 @@ public class RouteService {
                             .lat(p[0]).lng(p[1]).elevationM(null).build())
                     .toList();
 
-            List<AiRouteRequest.Crosswalk> crosswalks = route.intersections().stream()
-                    .map(intersection -> {
-                        SpatResponse spat = spatMap.get(intersection.itstId());
-                        Map<String, SignalCycle> cycles = cycleMap.get(intersection.itstId());
+            List<AiRouteRequest.Crosswalk> crosswalks = route.crosswalks().stream()
+                    .map(crosswalk -> {
+                        Integer itstId = crosswalk.itstId();
+                        SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
+                        Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
                         AiRouteRequest.Signal signal = spat == null ? null :
                                 AiRouteRequest.Signal.builder()
                                         .phase(resolvePhase(spat))
@@ -168,8 +174,9 @@ public class RouteService {
                                         .cycleSeconds(resolveCycle(cycles))
                                         .build();
                         return AiRouteRequest.Crosswalk.builder()
-                                .crosswalkId(String.valueOf(intersection.itstId()))
-                                .distanceFromStart(intersection.fraction() * route.totalDistanceM())
+                                .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
+                                .intersectionId(itstId)
+                                .distanceFromStart(crosswalk.distanceFromStart())
                                 .signal(signal)
                                 .build();
                     })

@@ -4,6 +4,7 @@ import kr.io.pacer.core.client.ValhallaClient;
 import kr.io.pacer.core.dto.external.ValhallaResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.repository.jdbc.RouteRepository;
+import kr.io.pacer.core.repository.jdbc.RouteRepository.CrosswalkInfo;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
 import kr.io.pacer.core.util.PolylineEncoder;
@@ -31,7 +32,8 @@ public class RouteGeometryService {
             String polyline,
             int totalTimeSec,
             double totalDistanceM,
-            List<IntersectionInfo> intersections
+            List<IntersectionInfo> intersections,
+            List<CrosswalkInfo> crosswalks
     ) {}
 
     @Cacheable(
@@ -66,9 +68,11 @@ public class RouteGeometryService {
             long t2 = System.currentTimeMillis();
             String lineStringWkt = polylineEncoder.toWkt(polyline);
             List<IntersectionInfo> intersections = routeRepository.findIntersectionsByRouteWkt(lineStringWkt);
-            log.info("[Route] 교차로 공간 쿼리: {}ms | 교차로 수: {}", System.currentTimeMillis() - t2, intersections.size());
+            List<CrosswalkInfo> crosswalks = routeRepository.findCrosswalksByRouteWkt(lineStringWkt, totalDistanceM);
+            log.info("[Route] 공간 쿼리: {}ms | 교차로 수: {} 횡단보도 수: {}",
+                    System.currentTimeMillis() - t2, intersections.size(), crosswalks.size());
 
-            return new CachedRoute(polyline, totalTimeSec, totalDistanceM, intersections);
+            return new CachedRoute(polyline, totalTimeSec, totalDistanceM, intersections, crosswalks);
         }).toList();
     }
 }
