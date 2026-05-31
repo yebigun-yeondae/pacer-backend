@@ -56,6 +56,14 @@ public class RouteService {
     private final RouteHistoryRepository historyRepository;
     private final FavoritePlaceService favoritePlaceService;
 
+    @Transactional(readOnly = true)
+    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
+        return historyRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .stream()
+                .map(RouteHistoryResponse::from)
+                .toList();
+    }
+
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
         log.info("[Route] 경로 탐색 시작 | userId={} origin=({},{}) dest=({},{})",
                 userId,
@@ -244,15 +252,14 @@ public class RouteService {
                     IntersectionInfo i = filtered.get(idx);
                     SpatResponse spat = spatMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
-                    SignalState state = resolveSignalState(spat);
                     return RouteResponse.SignalCheckpoint.builder()
                             .order(idx + 1)
                             .nodeId(i.itstId())
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(state)
-                            .recommendedPace(state == SignalState.GREEN ? RecommendedPace.NORMAL : RecommendedPace.SPEED_UP)
+                            .signalState(SignalState.UNKNOWN)
+                            .recommendedPace(RecommendedPace.NORMAL)
                             .build();
                 })
                 .toList();
@@ -307,16 +314,6 @@ public class RouteService {
                     return builder.build();
                 })
                 .toList();
-    }
-
-    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
-        List<RouteHistoryResponse> result = historyRepository
-                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
-                .stream()
-                .map(RouteHistoryResponse::from)
-                .toList();
-        log.debug("[Route] 히스토리 조회 | userId={} count={}", userId, result.size());
-        return result;
     }
 
     private SignalState resolveSignalState(SpatResponse spat) {

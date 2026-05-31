@@ -1,0 +1,3 @@
+ALTER TABLE pedestrian_profiles
+    ADD COLUMN IF NOT EXISTS speed_std  DOUBLE PRECISION NOT NULL DEFAULT 0.2,
+    ADD COLUMN IF NOT EXISTS trip_count INT              NOT NULL DEFAULT 0;
