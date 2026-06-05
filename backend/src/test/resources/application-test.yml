@@ -24,3 +24,19 @@ oauth:
     client-id: test-kakao-client-id
     client-secret: test-kakao-secret
     redirect-uri: http://localhost:3000/callback
+
+cits:
+  api-url: http://localhost:9999
+  api-key: test-cits-key
+  state-api-url: http://localhost:9999
+  spbi:
+    url: http://localhost:9999
+
+valhalla:
+  url: http://localhost:9999
+
+ai:
+  api-url: http://localhost:9999
+
+bus-stop:
+  api-key: test-bus-stop-key
