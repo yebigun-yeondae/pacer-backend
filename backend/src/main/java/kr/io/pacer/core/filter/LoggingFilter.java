@@ -28,17 +28,25 @@ public class LoggingFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } finally {
-            long elapsed = System.currentTimeMillis() - start;
-            int  status  = response.getStatus();
+            // 1. Prometheus나 Actuator 관련 요청은 로그 출력 제외
+            if (!shouldExcludeLogging(uri)) {
+                long elapsed = System.currentTimeMillis() - start;
+                int  status  = response.getStatus();
 
-            if (status >= 500) {
-                log.error("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
-            } else if (status >= 400) {
-                log.warn ("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
-            } else {
-                log.info ("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
+                if (status >= 500) {
+                    log.error("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
+                } else if (status >= 400) {
+                    log.warn ("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
+                } else {
+                    log.info ("[API] {} {} | ip={} | status={} | {}ms", method, uri, ip, status, elapsed);
+                }
             }
         }
+    }
+
+    // 로그 제외 대상을 판단하는 메서드
+    private boolean shouldExcludeLogging(String uri) {
+        return uri.startsWith("/actuator") || uri.equals("/favicon.ico");
     }
 
     private String resolveClientIp(HttpServletRequest request) {

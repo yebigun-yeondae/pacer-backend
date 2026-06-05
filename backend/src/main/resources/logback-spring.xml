@@ -3,7 +3,7 @@
 
     <!-- [공통 설정] 로그의 디자인(포맷)과 저장할 디렉토리 경로 정의 -->
     <property name="LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Seoul} [%thread] %-5level %logger{36} - %msg%n"/>
     <property name="LOG_DIR" value="logs"/>
 
     <!-- [공통 어펜더] 콘솔 출력 설정 (로컬 터미널 및 서버 stdout에서 실시간 확인용) -->
