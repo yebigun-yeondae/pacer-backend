@@ -28,6 +28,8 @@ public class PedestrianProfile {
     private int    totalRoutes    = 0;
     @Column(name = "total_distance_m")
     private double totalDistanceM = 0.0;
+    private double speedStd       = 0.2;
+    private int    tripCount      = 0;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
@@ -44,9 +46,10 @@ public class PedestrianProfile {
         return avgSpeedMps;
     }
 
-    // EMA 방식으로 속도 점진 업데이트
-    public void updateSpeed(double measuredSpeed) {
-        this.avgSpeedMps = this.avgSpeedMps * 0.7 + measuredSpeed * 0.3;
+    public void updateFromAi(double avgSpeed, double speedStd, int tripCount) {
+        this.avgSpeedMps = avgSpeed;
+        this.speedStd    = speedStd;
+        this.tripCount   = tripCount;
     }
 
     public void recordRoute(double distanceM) {

@@ -2,6 +2,7 @@ package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.domain.PedestrianProfile;
 import kr.io.pacer.core.domain.User;
+import kr.io.pacer.core.dto.ai.AiProfileUpdateRequest;
 import kr.io.pacer.core.dto.request.WalkingUpdateRequest;
 import kr.io.pacer.core.dto.response.ProfileResponse;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
@@ -9,6 +10,7 @@ import kr.io.pacer.core.repository.jpa.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +30,7 @@ class ProfileServiceTest {
     @InjectMocks ProfileService profileService;
     @Mock UserRepository userRepository;
     @Mock PedestrianProfileRepository profileRepository;
+    @Mock ProfileAsyncService profileAsyncService;
 
     // ── 프로필 조회 ────────────────────────────────────────────────────────────
 
@@ -79,59 +82,88 @@ class ProfileServiceTest {
     // ── 걸음속도 업데이트 ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("걸음속도 업데이트 - 기울기 보정 후 EMA로 속도 갱신")
-    void updateWalkingSpeed_computesAvgWithSlopeCorrectionAndEma() {
+    @DisplayName("걸음속도 업데이트 - segments 합산으로 actualAvgSpeed 정확히 계산")
+    void updateWalkingSpeed_calculatesCorrectActualAvgSpeed() {
         UUID userId = UUID.randomUUID();
         User user = User.of("테스터", "test@test.com", null);
         PedestrianProfile profile = PedestrianProfile.createDefault(user);
 
         given(profileRepository.findByUserId(userId)).willReturn(Optional.of(profile));
 
-        // segment1: rawSpeed = 100/80 = 1.25, corrected = 1.25/(1-0*0.02) = 1.25
-        // segment2: rawSpeed = 200/100 = 2.0,  corrected = 2.0/(1-0*0.02)  = 2.0
-        // avgMeasured = (1.25 + 2.0) / 2 = 1.625
-        // EMA: 1.4*0.7 + 1.625*0.3 = 0.98 + 0.4875 = 1.4675
+        // totalDistance = 100 + 200 = 300m, totalDuration = 80 + 100 = 180s
+        // actualAvgSpeed = 300 / 180 ≈ 1.6667 m/s
         WalkingUpdateRequest req = makeRequest(List.of(
-                makeSegment(100.0, 80.0, 0.0),
-                makeSegment(200.0, 100.0, 0.0)
+                makeSegment(100.0, 80.0, 2.0),
+                makeSegment(200.0, 100.0, -1.0)
         ));
 
         profileService.updateWalkingSpeed(userId, req);
 
-        assertThat(profile.getAvgSpeedMps()).isCloseTo(1.4675, within(0.0001));
+        ArgumentCaptor<AiProfileUpdateRequest> captor = ArgumentCaptor.forClass(AiProfileUpdateRequest.class);
+        then(profileAsyncService).should().updateProfileAsync(eq(userId), captor.capture());
+
+        AiProfileUpdateRequest aiReq = captor.getValue();
+        assertThat(aiReq.getActualDurationSeconds()).isCloseTo(180.0, within(0.001));
+        assertThat(aiReq.getActualAvgSpeed()).isCloseTo(300.0 / 180.0, within(0.001));
     }
 
     @Test
-    @DisplayName("걸음속도 업데이트 - 기울기가 있으면 보정된 속도 사용")
-    void updateWalkingSpeed_withSlope_appliesSlopeCorrection() {
+    @DisplayName("걸음속도 업데이트 - 기존 프로필 있으면 현재값을 AI 요청에 포함")
+    void updateWalkingSpeed_existingProfile_includesCurrentProfileInAiRequest() {
         UUID userId = UUID.randomUUID();
         User user = User.of("테스터", "test@test.com", null);
         PedestrianProfile profile = PedestrianProfile.createDefault(user);
+        profile.updateFromAi(1.6, 0.15, 7);
 
         given(profileRepository.findByUserId(userId)).willReturn(Optional.of(profile));
 
-        // rawSpeed = 100/100 = 1.0, corrected = 1.0 / (1 - 5 * 0.02) = 1.0 / 0.9 ≈ 1.1111
-        WalkingUpdateRequest req = makeRequest(List.of(
-                makeSegment(100.0, 100.0, 5.0)
-        ));
-
+        WalkingUpdateRequest req = makeRequest(List.of(makeSegment(100.0, 70.0, 0.0)));
         profileService.updateWalkingSpeed(userId, req);
 
-        double expectedMeasured = 1.0 / (1 - 5 * 0.02);
-        double expectedSpeed = 1.4 * 0.7 + expectedMeasured * 0.3;
-        assertThat(profile.getAvgSpeedMps()).isCloseTo(expectedSpeed, within(0.0001));
+        ArgumentCaptor<AiProfileUpdateRequest> captor = ArgumentCaptor.forClass(AiProfileUpdateRequest.class);
+        then(profileAsyncService).should().updateProfileAsync(eq(userId), captor.capture());
+
+        AiProfileUpdateRequest.CurrentProfile current = captor.getValue().getCurrentProfile();
+        assertThat(current.getAvgSpeed()).isCloseTo(1.6, within(0.001));
+        assertThat(current.getSpeedStd()).isCloseTo(0.15, within(0.001));
+        assertThat(current.getTripCount()).isEqualTo(7);
     }
 
     @Test
-    @DisplayName("걸음속도 업데이트 - 프로필 없음: IllegalStateException")
-    void updateWalkingSpeed_profileNotFound_throwsIllegalState() {
+    @DisplayName("걸음속도 업데이트 - 프로필 없으면 기본값(1.4, 0.2, 0)으로 AI 요청")
+    void updateWalkingSpeed_noProfile_usesDefaultValuesInAiRequest() {
         UUID userId = UUID.randomUUID();
         given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
 
-        WalkingUpdateRequest req = makeRequest(List.of(makeSegment(100.0, 80.0, 0.0)));
+        WalkingUpdateRequest req = makeRequest(List.of(makeSegment(100.0, 70.0, 0.0)));
+        profileService.updateWalkingSpeed(userId, req);
 
-        assertThatThrownBy(() -> profileService.updateWalkingSpeed(userId, req))
-                .isInstanceOf(IllegalStateException.class);
+        ArgumentCaptor<AiProfileUpdateRequest> captor = ArgumentCaptor.forClass(AiProfileUpdateRequest.class);
+        then(profileAsyncService).should().updateProfileAsync(eq(userId), captor.capture());
+
+        AiProfileUpdateRequest.CurrentProfile current = captor.getValue().getCurrentProfile();
+        assertThat(current.getAvgSpeed()).isCloseTo(1.4, within(0.001));
+        assertThat(current.getSpeedStd()).isCloseTo(0.2, within(0.001));
+        assertThat(current.getTripCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("걸음속도 업데이트 - slopeDeg는 AI 요청에 포함되지 않음(경사도 제외)")
+    void updateWalkingSpeed_slopeDegNotIncludedInAiRequest() {
+        UUID userId = UUID.randomUUID();
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
+
+        // 경사도 값이 어떻든 totalDistance/totalDuration만으로 speed 계산
+        WalkingUpdateRequest req = makeRequest(List.of(
+                makeSegment(120.0, 90.0, 30.0)  // 급경사
+        ));
+        profileService.updateWalkingSpeed(userId, req);
+
+        ArgumentCaptor<AiProfileUpdateRequest> captor = ArgumentCaptor.forClass(AiProfileUpdateRequest.class);
+        then(profileAsyncService).should().updateProfileAsync(eq(userId), captor.capture());
+
+        // slope 보정 없이 순수 120/90 계산
+        assertThat(captor.getValue().getActualAvgSpeed()).isCloseTo(120.0 / 90.0, within(0.001));
     }
 
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────

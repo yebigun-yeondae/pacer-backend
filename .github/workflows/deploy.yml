@@ -30,7 +30,7 @@ jobs:
 
       - name: 빌드하기
         working-directory: ./backend
-        run: ./gradlew clean build -x test
+        run: ./gradlew clean build
 
       - name: AWS Resource에 접근할 수 있게 AWS credentials 설정
         uses: aws-actions/configure-aws-credentials@v4
@@ -96,6 +96,8 @@ jobs:
 
             echo "$ENV_FILE_CONTENT" > .env
             chmod 600 .env
+
+            docker network inspect pacer-network >/dev/null 2>&1 || docker network create pacer-network
 
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
             docker compose down || true

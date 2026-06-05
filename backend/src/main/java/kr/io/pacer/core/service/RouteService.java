@@ -15,6 +15,7 @@ import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
+import kr.io.pacer.core.repository.jdbc.RouteRepository.CrosswalkInfo;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
@@ -31,7 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -51,6 +56,14 @@ public class RouteService {
     private final RouteHistoryRepository historyRepository;
     private final FavoritePlaceService favoritePlaceService;
 
+    @Transactional(readOnly = true)
+    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
+        return historyRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .stream()
+                .map(RouteHistoryResponse::from)
+                .toList();
+    }
+
     public RouteResponse findRoute(RouteRequest req, UUID userId) {
         log.info("[Route] 경로 탐색 시작 | userId={} origin=({},{}) dest=({},{})",
                 userId,
@@ -60,14 +73,28 @@ public class RouteService {
         List<CachedRoute> candidates = routeGeometryService.fetchAll(req, userId);
 
         List<Integer> itstIds = candidates.stream()
-                .flatMap(r -> r.intersections().stream())
-                .map(IntersectionInfo::itstId)
+                .flatMap(r -> Stream.concat(
+                        r.intersections().stream().map(IntersectionInfo::itstId),
+                        r.crosswalks().stream().map(CrosswalkInfo::itstId)))
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
 
-        Map<Integer, SpatResponse> spatMap = itstIds.isEmpty() ? Map.of() : citsSpatClient.fetchAll(itstIds);
-        Map<Integer, SpatStateResponse> stateMap = itstIds.isEmpty() ? Map.of() : citsSpatStateClient.fetchAll(itstIds);
-        Map<Integer, Map<String, SignalCycle>> cycleMap = signalCycleRepository.findByItstIds(itstIds);
+        CompletableFuture<Map<Integer, SpatResponse>> spatFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> citsSpatClient.fetchAll(itstIds));
+        CompletableFuture<Map<Integer, SpatStateResponse>> stateFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> citsSpatStateClient.fetchAll(itstIds));
+        CompletableFuture<Map<Integer, Map<String, SignalCycle>>> cycleFuture = itstIds.isEmpty()
+                ? CompletableFuture.completedFuture(Map.of())
+                : CompletableFuture.supplyAsync(() -> signalCycleRepository.findByItstIds(itstIds));
+
+        CompletableFuture.allOf(spatFuture, stateFuture, cycleFuture).join();
+
+        Map<Integer, SpatResponse> spatMap = spatFuture.join();
+        Map<Integer, SpatStateResponse> stateMap = stateFuture.join();
+        Map<Integer, Map<String, SignalCycle>> cycleMap = cycleFuture.join();
 
         itstIds.stream()
                 .filter(id -> !spatMap.containsKey(id))
@@ -143,18 +170,22 @@ public class RouteService {
                             .lat(p[0]).lng(p[1]).elevationM(null).build())
                     .toList();
 
-            List<AiRouteRequest.Crosswalk> crosswalks = route.intersections().stream()
-                    .map(intersection -> {
-                        SpatResponse spat = spatMap.get(intersection.itstId());
-                        Map<String, SignalCycle> cycles = cycleMap.get(intersection.itstId());
-                        return AiRouteRequest.Crosswalk.builder()
-                                .crosswalkId(String.valueOf(intersection.itstId()))
-                                .distanceFromStart(intersection.fraction() * route.totalDistanceM())
-                                .signal(AiRouteRequest.Signal.builder()
+            List<AiRouteRequest.Crosswalk> crosswalks = route.crosswalks().stream()
+                    .map(crosswalk -> {
+                        Integer itstId = crosswalk.itstId();
+                        SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
+                        Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
+                        AiRouteRequest.Signal signal = spat == null ? null :
+                                AiRouteRequest.Signal.builder()
                                         .phase(resolvePhase(spat))
                                         .remainingSeconds(resolveRemaining(spat))
                                         .cycleSeconds(resolveCycle(cycles))
-                                        .build())
+                                        .build();
+                        return AiRouteRequest.Crosswalk.builder()
+                                .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
+                                .intersectionId(itstId)
+                                .distanceFromStart(crosswalk.distanceFromStart())
+                                .signal(signal)
                                 .build();
                     })
                     .toList();
@@ -213,19 +244,22 @@ public class RouteService {
             Map<Integer, SpatResponse> spatMap,
             int totalTimeSec) {
 
-        return intersections.stream()
+        List<IntersectionInfo> filtered = intersections.stream()
                 .filter(i -> spatMap.containsKey(i.itstId()))
-                .map(i -> {
+                .toList();
+        return IntStream.range(0, filtered.size())
+                .mapToObj(idx -> {
+                    IntersectionInfo i = filtered.get(idx);
                     SpatResponse spat = spatMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
-                    SignalState state = resolveSignalState(spat);
                     return RouteResponse.SignalCheckpoint.builder()
+                            .order(idx + 1)
                             .nodeId(i.itstId())
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(state)
-                            .recommendedPace(state == SignalState.GREEN ? RecommendedPace.NORMAL : RecommendedPace.SPEED_UP)
+                            .signalState(SignalState.UNKNOWN)
+                            .recommendedPace(RecommendedPace.NORMAL)
                             .build();
                 })
                 .toList();
@@ -237,10 +271,12 @@ public class RouteService {
             Map<Integer, SpatStateResponse> stateMap,
             Map<Integer, Map<String, SignalCycle>> cycleMap) {
 
-        return intersections.stream()
-                .map(i -> {
+        return IntStream.range(0, intersections.size())
+                .mapToObj(idx -> {
+                    IntersectionInfo i = intersections.get(idx);
                     RouteResponse.IntersectionSignal.IntersectionSignalBuilder builder =
                             RouteResponse.IntersectionSignal.builder()
+                                    .order(idx + 1)
                                     .itstId(i.itstId())
                                     .name(i.name())
                                     .lat(i.lat())
@@ -278,16 +314,6 @@ public class RouteService {
                     return builder.build();
                 })
                 .toList();
-    }
-
-    public List<RouteHistoryResponse> getHistory(UUID userId, Pageable pageable) {
-        List<RouteHistoryResponse> result = historyRepository
-                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
-                .stream()
-                .map(RouteHistoryResponse::from)
-                .toList();
-        log.debug("[Route] 히스토리 조회 | userId={} count={}", userId, result.size());
-        return result;
     }
 
     private SignalState resolveSignalState(SpatResponse spat) {

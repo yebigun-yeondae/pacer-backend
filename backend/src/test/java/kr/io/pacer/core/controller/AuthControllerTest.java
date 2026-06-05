@@ -7,9 +7,13 @@ import kr.io.pacer.core.config.TestSecurityConfig;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.response.TokenResponse;
+import kr.io.pacer.core.exception.AlreadyWithdrawnException;
 import kr.io.pacer.core.exception.DuplicateEmailException;
 import kr.io.pacer.core.exception.InvalidCredentialsException;
 import kr.io.pacer.core.exception.InvalidTokenException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import kr.io.pacer.core.service.AuthService;
 import kr.io.pacer.core.service.GoogleAuthService;
 import kr.io.pacer.core.service.KakaoAuthService;
@@ -24,8 +28,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+import java.util.UUID;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -46,6 +55,16 @@ class AuthControllerTest {
     @MockitoBean KakaoAuthService kakaoAuthService;
     @MockitoBean GoogleAuthService googleAuthService;
     @MockitoBean AuthService authService;
+
+    private static final UUID TEST_USER_ID =
+            UUID.fromString("00000000-0000-0000-0000-000000000099");
+
+    private Authentication mockAuth() {
+        return new UsernamePasswordAuthenticationToken(
+                TEST_USER_ID, null,
+                List.of(new SimpleGrantedAuthority("USER"))
+        );
+    }
 
     // ── 일반 회원가입 ──────────────────────────────────────────────────────────
 
@@ -239,5 +258,31 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/v1/auth/logout")
                         .header("Refresh-Token", "my-refresh"))
                 .andExpect(status().isNoContent());
+    }
+
+    // ── 회원탈퇴 ──────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("DELETE /api/v1/auth/withdraw - 정상: 204 No Content")
+    void withdraw_authenticated_returns204() throws Exception {
+        willDoNothing().given(authService).withdraw(TEST_USER_ID, "my-refresh");
+
+        mockMvc.perform(delete("/api/v1/auth/withdraw")
+                        .header("Refresh-Token", "my-refresh")
+                        .with(authentication(mockAuth())))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/auth/withdraw - 이미 탈퇴한 계정: 410")
+    void withdraw_alreadyWithdrawn_returns410() throws Exception {
+        willThrow(new AlreadyWithdrawnException("이미 탈퇴한 계정입니다."))
+                .given(authService).withdraw(any(), any());
+
+        mockMvc.perform(delete("/api/v1/auth/withdraw")
+                        .header("Refresh-Token", "my-refresh")
+                        .with(authentication(mockAuth())))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("ALREADY_WITHDRAWN"));
     }
 }

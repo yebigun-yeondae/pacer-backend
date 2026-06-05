@@ -22,3 +22,14 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_EXTERNAL_PORT}
       timeout: 3000ms
+
+ai:
+  api-url: http://localhost:8000
+
+bus-stop:
+  api-key: "temporary_mock_key_for_dev"
+
+cits:
+  state-api-url: http://localhost:8080
+  spbi:
+    url: http://localhost:8080
