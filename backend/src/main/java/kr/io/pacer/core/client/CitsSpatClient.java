@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,7 +32,7 @@ public class CitsSpatClient {
         this.apiKey = apiKey;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3000);
-        factory.setReadTimeout(5000);
+        factory.setReadTimeout(10000);
         this.restClient = RestClient.builder()
                 .baseUrl(apiUrl)
                 .requestFactory(factory)
@@ -44,7 +45,15 @@ public class CitsSpatClient {
                 .toList();
 
         return futures.stream()
-                .map(CompletableFuture::join)
+                .map(f -> {
+                    try {
+                        return f.get(11, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        log.warn("[CITS] fetchAll timeout itstId 응답 무시: {}", e.getMessage());
+                        f.cancel(true);
+                        return null;
+                    }
+                })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(SpatResponse::getItstIdAsInt, item -> item, (a, b) -> a));
     }
