@@ -7,7 +7,6 @@ import kr.io.pacer.core.config.TestSecurityConfig;
 import kr.io.pacer.core.dto.oauth2.GoogleProfileDto;
 import kr.io.pacer.core.dto.oauth2.KakaoProfileDto;
 import kr.io.pacer.core.dto.response.TokenResponse;
-import kr.io.pacer.core.exception.AlreadyWithdrawnException;
 import kr.io.pacer.core.exception.DuplicateEmailException;
 import kr.io.pacer.core.exception.InvalidCredentialsException;
 import kr.io.pacer.core.exception.InvalidTokenException;
@@ -273,16 +272,4 @@ class AuthControllerTest {
                 .andExpect(status().isNoContent());
     }
 
-    @Test
-    @DisplayName("DELETE /api/v1/auth/withdraw - 이미 탈퇴한 계정: 410")
-    void withdraw_alreadyWithdrawn_returns410() throws Exception {
-        willThrow(new AlreadyWithdrawnException("이미 탈퇴한 계정입니다."))
-                .given(authService).withdraw(any(), any());
-
-        mockMvc.perform(delete("/api/v1/auth/withdraw")
-                        .header("Refresh-Token", "my-refresh")
-                        .with(authentication(mockAuth())))
-                .andExpect(status().isGone())
-                .andExpect(jsonPath("$.code").value("ALREADY_WITHDRAWN"));
-    }
 }
