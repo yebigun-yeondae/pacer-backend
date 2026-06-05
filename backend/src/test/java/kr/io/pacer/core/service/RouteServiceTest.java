@@ -63,7 +63,7 @@ class RouteServiceTest {
     void findRoute_success_returnsRouteResponseAndSavesHistory() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CachedRoute cached = new CachedRoute("encodedPolyline", 300, 500.0, List.of());
+        CachedRoute cached = new CachedRoute("encodedPolyline", 300, 500.0, List.of(), List.of());
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
@@ -85,7 +85,7 @@ class RouteServiceTest {
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
 
         IntersectionInfo intersection = new IntersectionInfo(101, "테스트 교차로", 37.505, 127.005, 0.5);
-        CachedRoute cached = new CachedRoute("polyline", 300, 500.0, List.of(intersection));
+        CachedRoute cached = new CachedRoute("polyline", 300, 500.0, List.of(intersection), List.of());
 
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
@@ -112,7 +112,7 @@ class RouteServiceTest {
     void findRoute_noProfile_usesDefaultSpeed() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of());
+        CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of());
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
