@@ -41,6 +41,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("FAVORITE_NOT_OWNED", e.getMessage()));
     }
 
+    @ExceptionHandler(AlreadyWithdrawnException.class)
+    public ResponseEntity<ErrorResponse> handleAlreadyWithdrawn(AlreadyWithdrawnException e) {
+        log.warn("[Exception] AlreadyWithdrawnException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(new ErrorResponse("ALREADY_WITHDRAWN", e.getMessage()));
+    }
+
     @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException e) {
         log.warn("[Exception] InvalidTokenException: {}", e.getMessage());
