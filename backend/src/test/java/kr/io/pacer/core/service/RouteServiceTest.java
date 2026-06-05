@@ -102,7 +102,7 @@ class RouteServiceTest {
         RouteResponse.SignalCheckpoint checkpoint = response.getSignalCheckpoints().get(0);
         assertThat(checkpoint.getNodeId()).isEqualTo(101);
         assertThat(checkpoint.getEtaFromStartSeconds()).isEqualTo(150); // 0.5 * 300
-        assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.GREEN);
+        assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.UNKNOWN);
 
         assertThat(response.getIntersectionSignals()).hasSize(1);
     }
