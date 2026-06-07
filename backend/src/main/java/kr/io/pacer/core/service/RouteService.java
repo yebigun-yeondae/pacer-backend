@@ -175,12 +175,8 @@ public class RouteService {
                         Integer itstId = crosswalk.itstId();
                         SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
                         Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
-                        AiRouteRequest.Signal signal = spat == null ? null :
-                                AiRouteRequest.Signal.builder()
-                                        .phase(resolvePhase(spat))
-                                        .remainingSeconds(resolveRemaining(spat))
-                                        .cycleSeconds(resolveCycle(cycles))
-                                        .build();
+                        AiRouteRequest.Signal signal = buildAiSignal(spat, cycles);
+
                         return AiRouteRequest.Crosswalk.builder()
                                 .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
                                 .intersectionId(itstId)
@@ -206,6 +202,19 @@ public class RouteService {
                         .tripCount(tripCount)
                         .build())
                 .routeCandidates(routeCandidates)
+                .build();
+    }
+
+    private AiRouteRequest.Signal buildAiSignal(SpatResponse spat, Map<String, SignalCycle> cycles) {
+        if (spat == null) return null;
+        String phase = resolvePhase(spat);
+        Double remainingSeconds = resolveRemaining(spat);
+        Double cycleSeconds = resolveCycle(cycles);
+        if (phase == null || remainingSeconds == null || cycleSeconds == null) return null;
+        return AiRouteRequest.Signal.builder()
+                .phase(phase)
+                .remainingSeconds(remainingSeconds)
+                .cycleSeconds(cycleSeconds)
                 .build();
     }
 
