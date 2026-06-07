@@ -33,3 +33,7 @@ cits:
   state-api-url: http://localhost:8080
   spbi:
     url: http://localhost:8080
+
+logging:
+  level:
+    kr.io.pacer: DEBUG

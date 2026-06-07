@@ -267,7 +267,7 @@ public class RouteService {
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(SignalState.UNKNOWN)
+                            .signalState(resolveSignalState(spat))
                             .recommendedPace(RecommendedPace.NORMAL)
                             .build();
                 })
