@@ -29,7 +29,11 @@ ai:
 bus-stop:
   api-key: "temporary_mock_key_for_dev"
 
-cits:
-  state-api-url: http://localhost:8080
-  spbi:
-    url: http://localhost:8080
+# cits:
+#   state-api-url: http://localhost:8080
+#   spbi:
+#     url: http://localhost:8080
+
+logging:
+  level:
+    kr.io.pacer: DEBUG

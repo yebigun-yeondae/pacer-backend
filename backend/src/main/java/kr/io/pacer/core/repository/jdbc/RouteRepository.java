@@ -52,9 +52,20 @@ public class RouteRepository {
                            c.nearest_itst_id,
                            ST_Y(c.center_geom) AS lat,
                            ST_X(c.center_geom) AS lng,
-                           ST_LineLocatePoint(r.geom, c.center_geom) AS fraction
+                           ST_LineLocatePoint(r.geom, c.center_geom) AS fraction,
+                           CASE ((floor((degrees(ST_Azimuth(i.geom::geography, c.center_geom::geography)) + 22.5) / 45)::int + 2) % 8)
+                               WHEN 0 THEN 'nt'
+                               WHEN 1 THEN 'ne'
+                               WHEN 2 THEN 'et'
+                               WHEN 3 THEN 'se'
+                               WHEN 4 THEN 'st'
+                               WHEN 5 THEN 'sw'
+                               WHEN 6 THEN 'wt'
+                               WHEN 7 THEN 'nw'
+                           END AS signal_direction
                     FROM crosswalks c
                     CROSS JOIN route r
+                    LEFT JOIN intersections i ON i.itst_id = c.nearest_itst_id
                     WHERE ST_DWithin(
                         r.geom::geography,
                         c.geom::geography,
@@ -67,6 +78,7 @@ public class RouteRepository {
                        lat,
                        lng,
                        fraction,
+                       signal_direction,
                        fraction * ? AS distance_from_start
                 FROM ranked
                 ORDER BY fraction
@@ -83,6 +95,7 @@ public class RouteRepository {
                         rs.getDouble("lat"),
                         rs.getDouble("lng"),
                         rs.getDouble("fraction"),
+                        rs.getString("signal_direction"),
                         rs.getDouble("distance_from_start")));
     }
 
@@ -94,6 +107,7 @@ public class RouteRepository {
             double lat,
             double lng,
             double fraction,
+            String signalDirection,
             double distanceFromStart
     ) {}
 }

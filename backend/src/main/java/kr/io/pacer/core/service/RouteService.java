@@ -5,7 +5,6 @@ import kr.io.pacer.core.client.CitsSpatClient;
 import kr.io.pacer.core.client.CitsSpatStateClient;
 import kr.io.pacer.core.domain.RouteHistory;
 import kr.io.pacer.core.domain.User;
-import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.ai.AiRouteRequest;
 import kr.io.pacer.core.dto.ai.AiRouteResponse;
@@ -31,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -173,14 +173,30 @@ public class RouteService {
             List<AiRouteRequest.Crosswalk> crosswalks = route.crosswalks().stream()
                     .map(crosswalk -> {
                         Integer itstId = crosswalk.itstId();
+                        String rawSignalDirection = crosswalk.signalDirection();
                         SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
                         Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
-                        AiRouteRequest.Signal signal = spat == null ? null :
-                                AiRouteRequest.Signal.builder()
-                                        .phase(resolvePhase(spat))
-                                        .remainingSeconds(resolveRemaining(spat))
-                                        .cycleSeconds(resolveCycle(cycles))
-                                        .build();
+                        List<String> directionCandidates = signalDirectionCandidates(rawSignalDirection);
+                        String signalDirection = resolveSignalDirection(spat, cycles, directionCandidates);
+                        Double remainingSeconds = resolveRemaining(spat, signalDirection);
+                        Double cycleSeconds = resolveCycle(cycles, signalDirection);
+                        AiRouteRequest.Signal signal = buildAiSignal(remainingSeconds, cycleSeconds);
+                        log.debug("[AI-CROSSWALK] routeId={} crosswalkId={} intersectionId={} rawDirection={} "
+                                        + "resolvedDirection={} candidates={} distance={} spat={} remaining={} "
+                                        + "cycleDirections={} cycle={} signal={}",
+                                routeId,
+                                crosswalk.crosswalkId(),
+                                itstId,
+                                rawSignalDirection,
+                                signalDirection,
+                                directionCandidates,
+                                crosswalk.distanceFromStart(),
+                                spat != null,
+                                remainingSeconds,
+                                cycles == null ? "[]" : cycles.keySet(),
+                                cycleSeconds,
+                                describeSignal(signal));
+
                         return AiRouteRequest.Crosswalk.builder()
                                 .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
                                 .intersectionId(itstId)
@@ -209,34 +225,73 @@ public class RouteService {
                 .build();
     }
 
-    private String resolvePhase(SpatResponse spat) {
-        if (spat == null) return null;
-        return hasAnyValidPdsg(
-                spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
-                spat.getStPdsgRmdrCs(), spat.getWtPdsgRmdrCs(),
-                spat.getNePdsgRmdrCs(), spat.getSePdsgRmdrCs(),
-                spat.getSwPdsgRmdrCs(), spat.getNwPdsgRmdrCs()) ? "green" : "red";
+    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds) {
+        String phase = remainingSeconds == null ? null : "green";
+        if (phase == null || remainingSeconds == null || cycleSeconds == null) return null;
+        return AiRouteRequest.Signal.builder()
+                .phase(phase)
+                .remainingSeconds(remainingSeconds)
+                .cycleSeconds(cycleSeconds)
+                .build();
     }
 
-    private Double resolveRemaining(SpatResponse spat) {
+    private Double resolveRemaining(SpatResponse spat, String signalDirection) {
         if (spat == null) return null;
-        Double[] values = {
-                spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
-                spat.getStPdsgRmdrCs(), spat.getWtPdsgRmdrCs(),
-                spat.getNePdsgRmdrCs(), spat.getSePdsgRmdrCs(),
-                spat.getSwPdsgRmdrCs(), spat.getNwPdsgRmdrCs()
+        Double value = switch (normalizeDirection(signalDirection)) {
+            case "nt" -> spat.getNtPdsgRmdrCs();
+            case "et" -> spat.getEtPdsgRmdrCs();
+            case "st" -> spat.getStPdsgRmdrCs();
+            case "wt" -> spat.getWtPdsgRmdrCs();
+            case "ne" -> spat.getNePdsgRmdrCs();
+            case "se" -> spat.getSePdsgRmdrCs();
+            case "sw" -> spat.getSwPdsgRmdrCs();
+            case "nw" -> spat.getNwPdsgRmdrCs();
+            default -> null;
         };
-        for (Double v : values) {
-            if (v != null && v > 0 && v < 36001.0) return v;
-        }
-        return null;
+        return isValidPdsg(value) ? value : null;
     }
 
-    private Double resolveCycle(Map<String, SignalCycle> cycles) {
+    private Double resolveCycle(Map<String, SignalCycle> cycles, String signalDirection) {
         if (cycles == null || cycles.isEmpty()) return null;
-        SignalCycle cycle = cycles.values().iterator().next();
+        String direction = normalizeDirection(signalDirection);
+        if (direction.isBlank()) return null;
+        SignalCycle cycle = cycles.get(direction);
+        if (cycle == null) return null;
         if (cycle.getRedMaxSec() == null || cycle.getGreenMaxSec() == null) return null;
         return cycle.getRedMaxSec() + cycle.getGreenMaxSec();
+    }
+
+    private String normalizeDirection(String signalDirection) {
+        return signalDirection == null ? "" : signalDirection.toLowerCase(Locale.ROOT);
+    }
+
+    private List<String> signalDirectionCandidates(String signalDirection) {
+        return switch (normalizeDirection(signalDirection)) {
+            case "nt", "et", "st", "wt" -> List.of(normalizeDirection(signalDirection));
+            case "ne" -> List.of("nt", "et");
+            case "se" -> List.of("st", "et");
+            case "sw" -> List.of("st", "wt");
+            case "nw" -> List.of("nt", "wt");
+            default -> List.of();
+        };
+    }
+
+    private String resolveSignalDirection(
+            SpatResponse spat,
+            Map<String, SignalCycle> cycles,
+            List<String> directionCandidates) {
+        List<String> usableDirections = directionCandidates.stream()
+                .filter(direction -> resolveRemaining(spat, direction) != null)
+                .filter(direction -> resolveCycle(cycles, direction) != null)
+                .toList();
+        return usableDirections.size() == 1 ? usableDirections.get(0) : null;
+    }
+
+    private String describeSignal(AiRouteRequest.Signal signal) {
+        if (signal == null) return "null";
+        return "phase=" + signal.getPhase()
+                + ", remaining=" + signal.getRemainingSeconds()
+                + ", cycle=" + signal.getCycleSeconds();
     }
 
     private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
@@ -258,8 +313,7 @@ public class RouteService {
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(SignalState.UNKNOWN)
-                            .recommendedPace(RecommendedPace.NORMAL)
+                            .signalState(resolveSignalState(spat))
                             .build();
                 })
                 .toList();
@@ -328,8 +382,12 @@ public class RouteService {
 
     private boolean hasAnyValidPdsg(Double... values) {
         for (Double v : values) {
-            if (v != null && v < 36001.0 && v > 0) return true;
+            if (isValidPdsg(v)) return true;
         }
         return false;
+    }
+
+    private boolean isValidPdsg(Double value) {
+        return value != null && value < 36001.0 && value > 0;
     }
 }
