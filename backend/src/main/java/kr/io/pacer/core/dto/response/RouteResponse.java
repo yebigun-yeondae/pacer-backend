@@ -1,6 +1,5 @@
 package kr.io.pacer.core.dto.response;
 
-import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -71,6 +70,5 @@ public class RouteResponse {
         private double          lng;
         private int             etaFromStartSeconds;
         private SignalState     signalState;
-        private RecommendedPace recommendedPace;
     }
 }

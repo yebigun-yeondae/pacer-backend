@@ -93,6 +93,26 @@ class RouteRepositoryTest {
     }
 
     @Test
+    @DisplayName("교차로 중심 기준 횡단보도 위치를 PDSG 방향으로 변환한다")
+    void findCrosswalksByRouteWkt_mapsCrosswalkPositionToPdsgDirection() {
+        jdbcTemplate.update("""
+                INSERT INTO intersections (itst_id, name, geom)
+                VALUES (102, '방향 테스트 교차로', ST_SetSRID(ST_MakePoint(127.005, 37.0), 4326))
+                """);
+        insertCrosswalk(500L, 102, "LINESTRING(127.004 36.9999, 127.004 37.0001)");
+        insertCrosswalk(600L, 102, "LINESTRING(127.006 36.9999, 127.006 37.0001)");
+
+        List<CrosswalkInfo> result = routeRepository.findCrosswalksByRouteWkt(
+                "LINESTRING(127.0 37.0, 127.01 37.0)",
+                1000.0);
+
+        assertThat(result).extracting(CrosswalkInfo::crosswalkId)
+                .containsExactly(500L, 600L);
+        assertThat(result).extracting(CrosswalkInfo::signalDirection)
+                .containsExactly("nt", "st");
+    }
+
+    @Test
     @DisplayName("nearest_itst_id가 없어도 횡단보도 후보는 조회한다")
     void findCrosswalksByRouteWkt_includesCrosswalkWithoutNearestIntersection() {
         insertCrosswalk(400L, null, "LINESTRING(127.002 36.9999, 127.002 37.0001)");
@@ -104,6 +124,7 @@ class RouteRepositoryTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).crosswalkId()).isEqualTo(400L);
         assertThat(result.get(0).itstId()).isNull();
+        assertThat(result.get(0).signalDirection()).isNull();
     }
 
     private void insertCrosswalk(long osmWayId, Integer nearestItstId, String wkt) {

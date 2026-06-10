@@ -228,8 +228,7 @@ java -jar -Dspring.profiles.active=prod core-0.0.1-SNAPSHOT.jar
       "lat": 37.5021,
       "lng": 127.0410,
       "etaFromStartSeconds": 95,
-      "signalState": "GREEN",
-      "recommendedPace": "NORMAL"
+      "signalState": "GREEN"
     }
   ],
   "intersectionSignals": [
