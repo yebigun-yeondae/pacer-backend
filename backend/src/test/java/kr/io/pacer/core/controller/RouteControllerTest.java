@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.io.pacer.core.auth.JwtFilter;
 import kr.io.pacer.core.config.SecurityConfig;
 import kr.io.pacer.core.config.TestSecurityConfig;
+import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.exception.RouteNotFoundException;
@@ -74,7 +75,14 @@ class RouteControllerTest {
                 .polyline("encodedPolyline")
                 .totalTimeSeconds(300)
                 .totalDistanceMeters(420.0)
-                .signalCheckpoints(List.of())
+                .signalCheckpoints(List.of(RouteResponse.SignalCheckpoint.builder()
+                        .order(1)
+                        .nodeId(1023)
+                        .lat(37.5021)
+                        .lng(127.0410)
+                        .etaFromStartSeconds(95)
+                        .signalState(SignalState.GREEN)
+                        .build()))
                 .build();
 
         given(routeService.findRoute(any(), any())).willReturn(response);
@@ -87,7 +95,8 @@ class RouteControllerTest {
                 .andExpect(jsonPath("$.polyline").value("encodedPolyline"))
                 .andExpect(jsonPath("$.totalTimeSeconds").value(300))
                 .andExpect(jsonPath("$.totalDistanceMeters").value(420.0))
-                .andExpect(jsonPath("$.signalCheckpoints").isArray());
+                .andExpect(jsonPath("$.signalCheckpoints").isArray())
+                .andExpect(jsonPath("$.signalCheckpoints[0].recommendedPace").doesNotExist());
     }
 
     @Test

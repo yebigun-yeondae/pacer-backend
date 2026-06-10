@@ -5,7 +5,6 @@ import kr.io.pacer.core.client.CitsSpatClient;
 import kr.io.pacer.core.client.CitsSpatStateClient;
 import kr.io.pacer.core.domain.RouteHistory;
 import kr.io.pacer.core.domain.User;
-import kr.io.pacer.core.domain.enums.RecommendedPace;
 import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.ai.AiRouteRequest;
 import kr.io.pacer.core.dto.ai.AiRouteResponse;
@@ -315,7 +314,6 @@ public class RouteService {
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
                             .signalState(resolveSignalState(spat))
-                            .recommendedPace(RecommendedPace.NORMAL)
                             .build();
                 })
                 .toList();
