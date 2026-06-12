@@ -102,7 +102,7 @@ public class RouteService {
 
         CachedRoute selected = selectRouteViaAi(userId, candidates, spatMap, stateMap, cycleMap);
 
-        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(selected.intersections(), spatMap, selected.totalTimeSec());
+        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(selected.intersections(), spatMap, stateMap, selected.totalTimeSec());
         List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(selected.intersections(), spatMap, stateMap, cycleMap);
 
         int signalStops = (int) checkpoints.stream()
@@ -133,7 +133,7 @@ public class RouteService {
                                           Map<Integer, SpatStateResponse> stateMap,
                                           Map<Integer, Map<String, SignalCycle>> cycleMap) {
         try {
-            AiRouteRequest aiRequest = buildAiRequest(userId, candidates, spatMap, cycleMap);
+            AiRouteRequest aiRequest = buildAiRequest(userId, candidates, spatMap, stateMap, cycleMap);
             AiRouteResponse aiResponse = aiRouteClient.selectRoute(aiRequest);
 
             String optimalId = aiResponse.getOptimalRouteId(); // "route_001"
@@ -151,6 +151,7 @@ public class RouteService {
 
     private AiRouteRequest buildAiRequest(UUID userId, List<CachedRoute> candidates,
                                            Map<Integer, SpatResponse> spatMap,
+                                           Map<Integer, SpatStateResponse> stateMap,
                                            Map<Integer, Map<String, SignalCycle>> cycleMap) {
         double avgSpeed = profileRepository.findByUserId(userId)
                 .map(p -> p.getAvgSpeedMps())
@@ -175,12 +176,14 @@ public class RouteService {
                         Integer itstId = crosswalk.itstId();
                         String rawSignalDirection = crosswalk.signalDirection();
                         SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
+                        SpatStateResponse spatState = itstId == null ? null : stateMap.get(itstId);
                         Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
                         List<String> directionCandidates = signalDirectionCandidates(rawSignalDirection);
                         String signalDirection = resolveSignalDirection(spat, cycles, directionCandidates);
                         Double remainingSeconds = resolveRemaining(spat, signalDirection);
                         Double cycleSeconds = resolveCycle(cycles, signalDirection);
-                        AiRouteRequest.Signal signal = buildAiSignal(remainingSeconds, cycleSeconds);
+                        String statNm = resolveStatNm(spatState, signalDirection);
+                        AiRouteRequest.Signal signal = buildAiSignal(remainingSeconds, cycleSeconds, statNm);
                         log.debug("[AI-CROSSWALK] routeId={} crosswalkId={} intersectionId={} rawDirection={} "
                                         + "resolvedDirection={} candidates={} distance={} spat={} remaining={} "
                                         + "cycleDirections={} cycle={} signal={}",
@@ -225,9 +228,11 @@ public class RouteService {
                 .build();
     }
 
-    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds) {
-        String phase = remainingSeconds == null ? null : "green";
-        if (phase == null || remainingSeconds == null || cycleSeconds == null) return null;
+    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds, String statNm) {
+        if (remainingSeconds == null || cycleSeconds == null) return null;
+        String phase = statNm != null
+                ? (isGreenStatNm(statNm) ? "green" : "red")
+                : "green";
         return AiRouteRequest.Signal.builder()
                 .phase(phase)
                 .remainingSeconds(remainingSeconds)
@@ -297,15 +302,17 @@ public class RouteService {
     private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
             List<IntersectionInfo> intersections,
             Map<Integer, SpatResponse> spatMap,
+            Map<Integer, SpatStateResponse> stateMap,
             int totalTimeSec) {
 
         List<IntersectionInfo> filtered = intersections.stream()
-                .filter(i -> spatMap.containsKey(i.itstId()))
+                .filter(i -> spatMap.containsKey(i.itstId()) || stateMap.containsKey(i.itstId()))
                 .toList();
         return IntStream.range(0, filtered.size())
                 .mapToObj(idx -> {
                     IntersectionInfo i = filtered.get(idx);
                     SpatResponse spat = spatMap.get(i.itstId());
+                    SpatStateResponse state = stateMap.get(i.itstId());
                     int etaSec = (int) (i.fraction() * totalTimeSec);
                     return RouteResponse.SignalCheckpoint.builder()
                             .order(idx + 1)
@@ -313,7 +320,7 @@ public class RouteService {
                             .lat(i.lat())
                             .lng(i.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(resolveSignalState(spat))
+                            .signalState(resolveSignalState(spat, state))
                             .build();
                 })
                 .toList();
@@ -370,7 +377,16 @@ public class RouteService {
                 .toList();
     }
 
-    private SignalState resolveSignalState(SpatResponse spat) {
+    private SignalState resolveSignalState(SpatResponse spat, SpatStateResponse state) {
+        if (state != null) {
+            boolean hasGreen = Stream.of(
+                    state.getNtPdsgStatNm(), state.getEtPdsgStatNm(),
+                    state.getStPdsgStatNm(), state.getWtPdsgStatNm(),
+                    state.getNePdsgStatNm(), state.getSePdsgStatNm(),
+                    state.getSwPdsgStatNm(), state.getNwPdsgStatNm()
+            ).anyMatch(s -> s != null && isGreenStatNm(s));
+            return hasGreen ? SignalState.GREEN : SignalState.RED;
+        }
         if (spat == null) return SignalState.RED;
         boolean hasValidGreen = hasAnyValidPdsg(
                 spat.getNtPdsgRmdrCs(), spat.getEtPdsgRmdrCs(),
@@ -378,6 +394,26 @@ public class RouteService {
                 spat.getNePdsgRmdrCs(), spat.getSePdsgRmdrCs(),
                 spat.getSwPdsgRmdrCs(), spat.getNwPdsgRmdrCs());
         return hasValidGreen ? SignalState.GREEN : SignalState.RED;
+    }
+
+    private boolean isGreenStatNm(String statNm) {
+        return "permissive-Movement-Allowed".equals(statNm)
+            || "protected-Movement-Allowed".equals(statNm);
+    }
+
+    private String resolveStatNm(SpatStateResponse state, String signalDirection) {
+        if (state == null) return null;
+        return switch (normalizeDirection(signalDirection)) {
+            case "nt" -> state.getNtPdsgStatNm();
+            case "et" -> state.getEtPdsgStatNm();
+            case "st" -> state.getStPdsgStatNm();
+            case "wt" -> state.getWtPdsgStatNm();
+            case "ne" -> state.getNePdsgStatNm();
+            case "se" -> state.getSePdsgStatNm();
+            case "sw" -> state.getSwPdsgStatNm();
+            case "nw" -> state.getNwPdsgStatNm();
+            default   -> null;
+        };
     }
 
     private boolean hasAnyValidPdsg(Double... values) {
