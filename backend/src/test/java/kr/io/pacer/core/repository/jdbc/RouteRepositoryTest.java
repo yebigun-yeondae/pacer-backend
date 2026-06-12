@@ -74,11 +74,12 @@ class RouteRepositoryTest {
     }
 
     @Test
-    @DisplayName("경로 20m 안의 횡단보도만 거리순으로 조회한다")
-    void findCrosswalksByRouteWkt_filtersByRadiusAndOrdersByFraction() {
+    @DisplayName("경로 중심선 10m 안의 실제 통과 횡단보도만 거리순으로 조회한다")
+    void findCrosswalksByRouteWkt_filtersByCenterDistanceAndOrdersByFraction() {
         insertCrosswalk(300L, 101, "LINESTRING(127.006 36.9999, 127.006 37.0001)");
         insertCrosswalk(100L, 101, "LINESTRING(127.002 36.9999, 127.002 37.0001)");
         insertCrosswalk(200L, 101, "LINESTRING(127.004 37.0010, 127.004 37.0012)");
+        insertCrosswalk(400L, 101, "LINESTRING(127.008 37.00005, 127.008 37.00035)");
 
         List<CrosswalkInfo> result = routeRepository.findCrosswalksByRouteWkt(
                 "LINESTRING(127.0 37.0, 127.01 37.0)",
@@ -110,6 +111,30 @@ class RouteRepositoryTest {
                 .containsExactly(500L, 600L);
         assertThat(result).extracting(CrosswalkInfo::signalDirection)
                 .containsExactly("nt", "st");
+    }
+
+    @Test
+    @DisplayName("대각 위치의 횡단보도는 선분 축으로 인접 PDSG 방향을 확정한다")
+    void findCrosswalksByRouteWkt_resolvesDiagonalPositionByCrosswalkAxis() {
+        jdbcTemplate.update("""
+                INSERT INTO intersections (itst_id, name, geom)
+                VALUES (102, '대각 방향 테스트 교차로', ST_SetSRID(ST_MakePoint(127.005, 37.0), 4326))
+                """);
+        insertCrosswalk(500L, 102, "LINESTRING(127.00485 37.00005, 127.00505 37.00005)");
+        insertCrosswalk(600L, 102, "LINESTRING(127.00495 36.99995, 127.00495 37.00015)");
+
+        List<CrosswalkInfo> result = routeRepository.findCrosswalksByRouteWkt(
+                "LINESTRING(127.004 37.00005, 127.006 37.00005)",
+                200.0);
+
+        assertThat(result).anySatisfy(crosswalk -> {
+            assertThat(crosswalk.crosswalkId()).isEqualTo(500L);
+            assertThat(crosswalk.signalDirection()).isEqualTo("et");
+        });
+        assertThat(result).anySatisfy(crosswalk -> {
+            assertThat(crosswalk.crosswalkId()).isEqualTo(600L);
+            assertThat(crosswalk.signalDirection()).isEqualTo("nt");
+        });
     }
 
     @Test
