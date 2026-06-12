@@ -9,6 +9,7 @@ import kr.io.pacer.core.domain.enums.SignalState;
 import kr.io.pacer.core.dto.ai.AiRouteRequest;
 import kr.io.pacer.core.dto.ai.AiRouteResponse;
 import kr.io.pacer.core.dto.external.SpatResponse;
+import kr.io.pacer.core.dto.external.SpatStateResponse;
 import kr.io.pacer.core.dto.request.RouteRequest;
 import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
@@ -94,8 +95,10 @@ class RouteServiceTest {
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        SpatStateResponse state = makeSpatStateResponse("protected-Movement-Allowed", null, null, null, null, null, null, null);
+
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(anyList())).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(anyList())).willReturn(Map.of(101, state));
         given(signalCycleRepository.findByItstIds(anyList())).willReturn(Map.of());
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
         given(historyRepository.save(any())).willReturn(null);
@@ -184,8 +187,10 @@ class RouteServiceTest {
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        SpatStateResponse state = makeSpatStateResponse("protected-Movement-Allowed", null, null, null, null, null, null, null);
+
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(101, state));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of("nt", RouteResponse.SignalCycle.builder()
                         .redMaxSec(30.0)
@@ -222,8 +227,10 @@ class RouteServiceTest {
         SpatResponse spat = makeSpatResponse(10.0, null, 25.0, null, null, null, null, null);
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        SpatStateResponse state = makeSpatStateResponse(null, null, "protected-Movement-Allowed", null, null, null, null, null);
+
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(101, state));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of(
                         "nt", RouteResponse.SignalCycle.builder()
@@ -256,8 +263,10 @@ class RouteServiceTest {
     void findRoute_aiRequest_diagonalDirection_usesSingleUsableAdjacentDirection() {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
+        // nw → [nt, wt] 중 remaining 있는 nt 선택 → nt 상태명 green
+        SpatStateResponse state = makeSpatStateResponse("protected-Movement-Allowed", null, null, null, null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, state, Map.of(
                 "nt", signalCycle(30.0, 60.0),
                 "wt", signalCycle(40.0, 80.0)));
 
@@ -271,8 +280,9 @@ class RouteServiceTest {
     void findRoute_aiRequest_diagonalDirection_withAmbiguousAdjacentDirections_hasNullSignal() {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, 20.0, null, null, null, null);
+        SpatStateResponse state = makeSpatStateResponse("protected-Movement-Allowed", null, null, "protected-Movement-Allowed", null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, state, Map.of(
                 "nt", signalCycle(30.0, 60.0),
                 "wt", signalCycle(40.0, 80.0)));
 
@@ -284,8 +294,10 @@ class RouteServiceTest {
     void findRoute_aiRequest_diagonalDirection_ignoresInvalidRemainingTime() {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(36001.0, null, null, 20.0, null, null, null, null);
+        // nw → [nt, wt] 중 nt=36001(무효), wt=20.0 선택 → wt 상태명 green
+        SpatStateResponse state = makeSpatStateResponse(null, null, null, "protected-Movement-Allowed", null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, state, Map.of(
                 "nt", signalCycle(30.0, 60.0),
                 "wt", signalCycle(40.0, 80.0)));
 
@@ -386,6 +398,7 @@ class RouteServiceTest {
     private AiRouteRequest.Crosswalk findRouteAndCaptureSingleCrosswalk(
             CrosswalkInfo crosswalk,
             SpatResponse spat,
+            SpatStateResponse state,
             Map<String, RouteResponse.SignalCycle> cycles) {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
@@ -393,7 +406,7 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(101, state));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(101, cycles));
         given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
         given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
@@ -442,6 +455,21 @@ class RouteServiceTest {
         ReflectionTestUtils.setField(spat, "swPdsgRmdrCs", sw);
         ReflectionTestUtils.setField(spat, "nwPdsgRmdrCs", nw);
         return spat;
+    }
+
+    private SpatStateResponse makeSpatStateResponse(String nt, String et, String st, String wt,
+                                                     String ne, String se, String sw, String nw) {
+        SpatStateResponse state = new SpatStateResponse();
+        ReflectionTestUtils.setField(state, "itstId", "101");
+        ReflectionTestUtils.setField(state, "ntPdsgStatNm", nt);
+        ReflectionTestUtils.setField(state, "etPdsgStatNm", et);
+        ReflectionTestUtils.setField(state, "stPdsgStatNm", st);
+        ReflectionTestUtils.setField(state, "wtPdsgStatNm", wt);
+        ReflectionTestUtils.setField(state, "nePdsgStatNm", ne);
+        ReflectionTestUtils.setField(state, "sePdsgStatNm", se);
+        ReflectionTestUtils.setField(state, "swPdsgStatNm", sw);
+        ReflectionTestUtils.setField(state, "nwPdsgStatNm", nw);
+        return state;
     }
 
     private AiRouteResponse makeAiRouteResponse(String optimalRouteId) {
