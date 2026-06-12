@@ -65,10 +65,13 @@ public class RouteResponse {
     @AllArgsConstructor
     public static class SignalCheckpoint {
         private int             order;
-        private int             nodeId;
+        private String          crosswalkId;
+        private Integer         intersectionId;
         private double          lat;
         private double          lng;
         private int             etaFromStartSeconds;
+        private String          signalDirection;
+        private Double          remainingSeconds;
         private SignalState     signalState;
     }
 }

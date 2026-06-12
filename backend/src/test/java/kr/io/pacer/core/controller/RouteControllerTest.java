@@ -77,10 +77,13 @@ class RouteControllerTest {
                 .totalDistanceMeters(420.0)
                 .signalCheckpoints(List.of(RouteResponse.SignalCheckpoint.builder()
                         .order(1)
-                        .nodeId(1023)
+                        .crosswalkId("9001")
+                        .intersectionId(1023)
                         .lat(37.5021)
                         .lng(127.0410)
                         .etaFromStartSeconds(95)
+                        .signalDirection("nt")
+                        .remainingSeconds(23.0)
                         .signalState(SignalState.GREEN)
                         .build()))
                 .build();
@@ -96,6 +99,10 @@ class RouteControllerTest {
                 .andExpect(jsonPath("$.totalTimeSeconds").value(300))
                 .andExpect(jsonPath("$.totalDistanceMeters").value(420.0))
                 .andExpect(jsonPath("$.signalCheckpoints").isArray())
+                .andExpect(jsonPath("$.signalCheckpoints[0].crosswalkId").value("9001"))
+                .andExpect(jsonPath("$.signalCheckpoints[0].intersectionId").value(1023))
+                .andExpect(jsonPath("$.signalCheckpoints[0].signalDirection").value("nt"))
+                .andExpect(jsonPath("$.signalCheckpoints[0].remainingSeconds").value(23.0))
                 .andExpect(jsonPath("$.signalCheckpoints[0].recommendedPace").doesNotExist());
     }
 

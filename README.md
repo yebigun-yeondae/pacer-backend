@@ -224,10 +224,14 @@ java -jar -Dspring.profiles.active=prod core-0.0.1-SNAPSHOT.jar
   "totalDistanceMeters": 520.3,
   "signalCheckpoints": [
     {
-      "nodeId": 1023,
-      "lat": 37.5021,
-      "lng": 127.0410,
+      "order": 1,
+      "crosswalkId": "9001",
+      "intersectionId": 5501,
+      "lat": 37.5022,
+      "lng": 127.0412,
       "etaFromStartSeconds": 95,
+      "signalDirection": "nt",
+      "remainingSeconds": 23.0,
       "signalState": "GREEN"
     }
   ],
