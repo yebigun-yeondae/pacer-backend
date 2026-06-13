@@ -1,4 +1,4 @@
-ackage kr.io.pacer.core.service;
+package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.client.AiRouteClient;
 import kr.io.pacer.core.client.CitsSpatClient;
