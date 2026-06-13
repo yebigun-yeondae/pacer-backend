@@ -26,9 +26,6 @@ spring:
 ai:
   api-url: http://localhost:8000
 
-bus-stop:
-  api-key: "temporary_mock_key_for_dev"
-
 # cits:
 #   state-api-url: http://localhost:8080
 #   spbi:
