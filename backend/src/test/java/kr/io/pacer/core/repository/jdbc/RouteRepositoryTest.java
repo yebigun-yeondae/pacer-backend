@@ -74,10 +74,11 @@ class RouteRepositoryTest {
     }
 
     @Test
-    @DisplayName("경로 중심선 10m 안의 실제 통과 횡단보도만 거리순으로 조회한다")
+    @DisplayName("경로 중심선 5m 안의 실제 통과 횡단보도만 거리순으로 조회한다")
     void findCrosswalksByRouteWkt_filtersByCenterDistanceAndOrdersByFraction() {
         insertCrosswalk(300L, 101, "LINESTRING(127.006 36.9999, 127.006 37.0001)");
         insertCrosswalk(100L, 101, "LINESTRING(127.002 36.9999, 127.002 37.0001)");
+        insertCrosswalk(150L, 101, "LINESTRING(127.003 37.00005, 127.003 37.00007)");
         insertCrosswalk(200L, 101, "LINESTRING(127.004 37.0010, 127.004 37.0012)");
         insertCrosswalk(400L, 101, "LINESTRING(127.008 37.00005, 127.008 37.00035)");
 
@@ -138,18 +139,15 @@ class RouteRepositoryTest {
     }
 
     @Test
-    @DisplayName("nearest_itst_id가 없어도 횡단보도 후보는 조회한다")
-    void findCrosswalksByRouteWkt_includesCrosswalkWithoutNearestIntersection() {
+    @DisplayName("nearest_itst_id가 없는 횡단보도 후보는 제외한다")
+    void findCrosswalksByRouteWkt_excludesCrosswalkWithoutNearestIntersection() {
         insertCrosswalk(400L, null, "LINESTRING(127.002 36.9999, 127.002 37.0001)");
 
         List<CrosswalkInfo> result = routeRepository.findCrosswalksByRouteWkt(
                 "LINESTRING(127.0 37.0, 127.01 37.0)",
                 1000.0);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).crosswalkId()).isEqualTo(400L);
-        assertThat(result.get(0).itstId()).isNull();
-        assertThat(result.get(0).signalDirection()).isNull();
+        assertThat(result).isEmpty();
     }
 
     private void insertCrosswalk(long osmWayId, Integer nearestItstId, String wkt) {
