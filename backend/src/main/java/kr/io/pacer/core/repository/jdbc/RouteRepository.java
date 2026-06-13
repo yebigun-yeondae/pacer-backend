@@ -10,7 +10,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RouteRepository {
 
-    private static final double CROSSWALK_CENTER_SEARCH_RADIUS_M = 10.0;
+    private static final double CROSSWALK_CENTER_SEARCH_RADIUS_M = 5.0;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -72,7 +72,7 @@ public class RouteRepository {
                            END AS horizontal_crossing
                     FROM crosswalks c
                     CROSS JOIN route r
-                    LEFT JOIN intersections i ON i.itst_id = c.nearest_itst_id
+                    JOIN intersections i ON i.itst_id = c.nearest_itst_id
                     WHERE ST_DWithin(
                         r.geom::geography,
                         c.center_geom::geography,

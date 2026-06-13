@@ -423,11 +423,21 @@ public class RouteService {
     private SignalState resolveSignalState(SpatStateResponse state, SpatResponse spat, String signalDirection) {
         String status = resolveDirectionStatus(state, signalDirection);
         if (status != null) {
-            if (status.contains("녹색")) return SignalState.GREEN;
-            if (status.contains("적색")) return SignalState.RED;
+            if (isGreenStatus(status)) return SignalState.GREEN;
+            if (isRedStatus(status)) return SignalState.RED;
         }
         if (spat == null || signalDirection == null) return SignalState.UNKNOWN;
         return resolveRemaining(spat, signalDirection) == null ? SignalState.RED : SignalState.GREEN;
+    }
+
+    private boolean isGreenStatus(String status) {
+        return "permissive-Movement-Allowed".equals(status)
+            || "protected-Movement-Allowed".equals(status);
+    }
+
+    private boolean isRedStatus(String status) {
+        return "stop-And-Remain".equals(status)
+            || "stop-Then-Proceed".equals(status);
     }
 
     private String resolveDirectionStatus(SpatStateResponse state, String signalDirection) {

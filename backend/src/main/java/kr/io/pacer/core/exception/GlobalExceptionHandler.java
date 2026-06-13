@@ -20,6 +20,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("BUS_STOP_NOT_FOUND", e.getMessage()));
     }
 
+    @ExceptionHandler(SubwayStationNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSubwayStationNotFound(SubwayStationNotFoundException e) {
+        log.warn("[Exception] SubwayStationNotFoundException: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("SUBWAY_STATION_NOT_FOUND", e.getMessage()));
+    }
+
     @ExceptionHandler(RouteNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleRouteNotFound(RouteNotFoundException e) {
         log.warn("[Exception] RouteNotFoundException: {}", e.getMessage());

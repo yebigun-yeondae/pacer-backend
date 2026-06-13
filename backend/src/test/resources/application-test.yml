@@ -40,3 +40,9 @@ valhalla:
 ai:
   api-url: http://localhost:9999
 
+subway:
+  station-api-url: http://localhost:9999
+  api-key: test-subway-key
+  arrival-api-url: http://localhost:9999
+  arrival-api-key: test-subway-arrival-key
+
