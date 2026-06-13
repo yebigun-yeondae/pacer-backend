@@ -38,6 +38,11 @@ valhalla:
 ai:
   api-url: ${AI_API_URL}
 
+subway:
+  station-api-url: http://openAPI.seoul.go.kr:8088
+  arrival-api-url: http://swopenAPI.seoul.go.kr
+  api-key: ${SUBWAY_API_KEY}
+  arrival-api-key: ${SUBWAY_ARRIVAL_API_KEY}
 management:
   endpoints:
     web:

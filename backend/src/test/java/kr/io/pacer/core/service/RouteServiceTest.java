@@ -98,7 +98,7 @@ class RouteServiceTest {
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
         given(citsSpatStateClient.fetchAll(anyList())).willReturn(Map.of(
-                101, makeSpatStateResponse("보행자녹색", null, null, null, null, null, null, null)));
+                101, makeSpatStateResponse("permissive-Movement-Allowed", null, null, null, null, null, null, null)));
         given(signalCycleRepository.findByItstIds(anyList())).willReturn(Map.of());
         given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
         given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
