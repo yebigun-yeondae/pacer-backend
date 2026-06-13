@@ -40,6 +40,7 @@ public class SubwayStationSyncService {
             List<Object[]> params = rows.subList(i, Math.min(i + BATCH_SIZE, rows.size()))
                     .stream()
                     .filter(row -> row.getBlndId() != null
+                            && row.getBlndNm() != null
                             && row.getLat() != null
                             && row.getLot() != null)
                     .map(row -> {
