@@ -46,6 +46,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/kakao",
                                 "/api/v1/auth/reissue",
                                 "/api/v1/auth/logout",
+                                "/api/v1/bus-stops/**",
+                                "/api/v1/subway-stations/**",
                                 "/actuator/**"
                         ).permitAll()
                         .anyRequest().authenticated()
