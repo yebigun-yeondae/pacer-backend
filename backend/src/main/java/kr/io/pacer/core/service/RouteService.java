@@ -1,4 +1,4 @@
-package kr.io.pacer.core.service;
+﻿package kr.io.pacer.core.service;
 
 import kr.io.pacer.core.client.AiRouteClient;
 import kr.io.pacer.core.client.CitsSpatClient;
@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 public class RouteService {
 
     private static final double DEFAULT_SPEED_STD = 0.2;
+    private static final double DUPLICATE_SIGNAL_EVENT_DISTANCE_M = 30.0;
 
     private final RouteGeometryService routeGeometryService;
     private final CitsSpatClient citsSpatClient;
@@ -101,8 +102,10 @@ public class RouteService {
                 .forEach(id -> log.warn("[CITS] 신호 데이터 누락 itstId={}", id));
 
         CachedRoute selected = selectRouteViaAi(userId, candidates, spatMap, stateMap, cycleMap);
+        List<ResolvedCrosswalkSignal> selectedSignals = resolveCrosswalkSignals(
+                selected.crosswalks(), spatMap, stateMap, cycleMap);
 
-        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(selected.intersections(), stateMap, selected.totalTimeSec());
+        List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(selectedSignals, selected.totalTimeSec());
         List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(selected.intersections(), spatMap, stateMap, cycleMap);
 
         int signalStops = (int) checkpoints.stream()
@@ -171,38 +174,28 @@ public class RouteService {
                             .lat(p[0]).lng(p[1]).elevationM(null).build())
                     .toList();
 
-            List<AiRouteRequest.Crosswalk> crosswalks = route.crosswalks().stream()
-                    .map(crosswalk -> {
-                        Integer itstId = crosswalk.itstId();
-                        String rawSignalDirection = crosswalk.signalDirection();
-                        SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
-                        SpatStateResponse spatState = itstId == null ? null : stateMap.get(itstId);
-                        Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
-                        List<String> directionCandidates = signalDirectionCandidates(rawSignalDirection);
-                        String signalDirection = resolveSignalDirection(spat, cycles, directionCandidates);
-                        Double remainingSeconds = resolveRemaining(spat, signalDirection);
-                        Double cycleSeconds = resolveCycle(cycles, signalDirection);
-                        String statNm = resolveStatNm(spatState, signalDirection);
-                        AiRouteRequest.Signal signal = buildAiSignal(remainingSeconds, cycleSeconds, statNm);
+            List<ResolvedCrosswalkSignal> crosswalkSignals = resolveCrosswalkSignals(
+                    route.crosswalks(), spatMap, stateMap, cycleMap);
+            List<AiRouteRequest.Crosswalk> crosswalks = crosswalkSignals.stream()
+                    .map(crosswalkSignal -> {
+                        CrosswalkInfo crosswalk = crosswalkSignal.crosswalk();
+                        AiRouteRequest.Signal signal = buildAiSignal(
+                                crosswalkSignal.remainingSeconds(), crosswalkSignal.cycleSeconds());
                         log.debug("[AI-CROSSWALK] routeId={} crosswalkId={} intersectionId={} rawDirection={} "
-                                        + "resolvedDirection={} candidates={} distance={} spat={} remaining={} "
-                                        + "cycleDirections={} cycle={} signal={}",
+                                        + "resolvedDirection={} distance={} remaining={} cycle={} signal={}",
                                 routeId,
                                 crosswalk.crosswalkId(),
-                                itstId,
-                                rawSignalDirection,
-                                signalDirection,
-                                directionCandidates,
+                                crosswalk.itstId(),
+                                crosswalk.signalDirection(),
+                                crosswalkSignal.signalDirection(),
                                 crosswalk.distanceFromStart(),
-                                spat != null,
-                                remainingSeconds,
-                                cycles == null ? "[]" : cycles.keySet(),
-                                cycleSeconds,
+                                crosswalkSignal.remainingSeconds(),
+                                crosswalkSignal.cycleSeconds(),
                                 describeSignal(signal));
 
                         return AiRouteRequest.Crosswalk.builder()
                                 .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
-                                .intersectionId(itstId)
+                                .intersectionId(crosswalk.itstId())
                                 .distanceFromStart(crosswalk.distanceFromStart())
                                 .signal(signal)
                                 .build();
@@ -228,9 +221,9 @@ public class RouteService {
                 .build();
     }
 
-    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds, String statNm) {
-        if (statNm == null || cycleSeconds == null) return null;
-        String phase = isGreenStatNm(statNm) ? "green" : "red";
+    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds) {
+        String phase = remainingSeconds == null ? null : "green";
+        if (phase == null || remainingSeconds == null || cycleSeconds == null) return null;
         return AiRouteRequest.Signal.builder()
                 .phase(phase)
                 .remainingSeconds(remainingSeconds)
@@ -279,17 +272,6 @@ public class RouteService {
         };
     }
 
-    private String resolveSignalDirection(
-            SpatResponse spat,
-            Map<String, SignalCycle> cycles,
-            List<String> directionCandidates) {
-        List<String> usableDirections = directionCandidates.stream()
-                .filter(direction -> resolveRemaining(spat, direction) != null)
-                .filter(direction -> resolveCycle(cycles, direction) != null)
-                .toList();
-        return usableDirections.size() == 1 ? usableDirections.get(0) : null;
-    }
-
     private String describeSignal(AiRouteRequest.Signal signal) {
         if (signal == null) return "null";
         return "phase=" + signal.getPhase()
@@ -297,26 +279,94 @@ public class RouteService {
                 + ", cycle=" + signal.getCycleSeconds();
     }
 
-    private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
-            List<IntersectionInfo> intersections,
+    private List<ResolvedCrosswalkSignal> resolveCrosswalkSignals(
+            List<CrosswalkInfo> crosswalks,
+            Map<Integer, SpatResponse> spatMap,
             Map<Integer, SpatStateResponse> stateMap,
+            Map<Integer, Map<String, SignalCycle>> cycleMap) {
+
+        List<ResolvedCrosswalkSignal> signals = crosswalks.stream()
+                .map(crosswalk -> resolveCrosswalkSignal(crosswalk, spatMap, stateMap, cycleMap))
+                .toList();
+        return deduplicateSignalEvents(signals);
+    }
+
+    private ResolvedCrosswalkSignal resolveCrosswalkSignal(
+            CrosswalkInfo crosswalk,
+            Map<Integer, SpatResponse> spatMap,
+            Map<Integer, SpatStateResponse> stateMap,
+            Map<Integer, Map<String, SignalCycle>> cycleMap) {
+        Integer itstId = crosswalk.itstId();
+        SpatResponse spat = itstId == null ? null : spatMap.get(itstId);
+        SpatStateResponse state = itstId == null ? null : stateMap.get(itstId);
+        Map<String, SignalCycle> cycles = itstId == null ? null : cycleMap.get(itstId);
+        String signalDirection = resolveCheckpointSignalDirection(
+                spat, state, signalDirectionCandidates(crosswalk.signalDirection()));
+        Double remainingSeconds = resolveRemaining(spat, signalDirection);
+        Double cycleSeconds = resolveCycle(cycles, signalDirection);
+        SignalState signalState = resolveSignalState(state, spat, signalDirection);
+        return new ResolvedCrosswalkSignal(
+                crosswalk, signalDirection, remainingSeconds, cycleSeconds, signalState);
+    }
+
+    private List<ResolvedCrosswalkSignal> deduplicateSignalEvents(List<ResolvedCrosswalkSignal> signals) {
+        List<ResolvedCrosswalkSignal> deduplicated = new ArrayList<>();
+        for (ResolvedCrosswalkSignal signal : signals) {
+            if (!deduplicated.isEmpty() && isDuplicateSignalEvent(deduplicated.get(deduplicated.size() - 1), signal)) {
+                continue;
+            }
+            deduplicated.add(signal);
+        }
+        return deduplicated;
+    }
+
+    private boolean isDuplicateSignalEvent(ResolvedCrosswalkSignal previous, ResolvedCrosswalkSignal current) {
+        Integer previousItstId = previous.crosswalk().itstId();
+        Integer currentItstId = current.crosswalk().itstId();
+        String previousDirection = normalizeDirection(previous.signalDirection());
+        String currentDirection = normalizeDirection(current.signalDirection());
+        if (previousItstId == null || currentItstId == null) return false;
+        if (previousDirection.isBlank() || currentDirection.isBlank()) return false;
+        if (!previousItstId.equals(currentItstId)) return false;
+        if (!previousDirection.equals(currentDirection)) return false;
+        double distanceDelta = Math.abs(previous.crosswalk().distanceFromStart() - current.crosswalk().distanceFromStart());
+        return distanceDelta <= DUPLICATE_SIGNAL_EVENT_DISTANCE_M;
+    }
+
+    private List<RouteResponse.SignalCheckpoint> buildCheckpoints(
+            List<ResolvedCrosswalkSignal> crosswalkSignals,
             int totalTimeSec) {
 
-        return IntStream.range(0, intersections.size())
+        return IntStream.range(0, crosswalkSignals.size())
                 .mapToObj(idx -> {
-                    IntersectionInfo i = intersections.get(idx);
-                    SpatStateResponse state = stateMap.get(i.itstId());
-                    int etaSec = (int) (i.fraction() * totalTimeSec);
+                    ResolvedCrosswalkSignal crosswalkSignal = crosswalkSignals.get(idx);
+                    CrosswalkInfo crosswalk = crosswalkSignal.crosswalk();
+                    int etaSec = (int) (crosswalk.fraction() * totalTimeSec);
                     return RouteResponse.SignalCheckpoint.builder()
                             .order(idx + 1)
-                            .nodeId(i.itstId())
-                            .lat(i.lat())
-                            .lng(i.lng())
+                            .crosswalkId(String.valueOf(crosswalk.crosswalkId()))
+                            .intersectionId(crosswalk.itstId())
+                            .lat(crosswalk.lat())
+                            .lng(crosswalk.lng())
                             .etaFromStartSeconds(etaSec)
-                            .signalState(resolveSignalState(state))
+                            .signalDirection(crosswalkSignal.signalDirection())
+                            .remainingSeconds(crosswalkSignal.remainingSeconds())
+                            .signalState(crosswalkSignal.signalState())
                             .build();
                 })
                 .toList();
+    }
+
+    private String resolveCheckpointSignalDirection(
+            SpatResponse spat,
+            SpatStateResponse state,
+            List<String> directionCandidates) {
+        if (directionCandidates.size() == 1) return directionCandidates.get(0);
+        List<String> usableDirections = directionCandidates.stream()
+                .filter(direction -> resolveRemaining(spat, direction) != null
+                        || resolveDirectionStatus(state, direction) != null)
+                .toList();
+        return usableDirections.size() == 1 ? usableDirections.get(0) : null;
     }
 
     private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(
@@ -370,23 +420,17 @@ public class RouteService {
                 .toList();
     }
 
-    private SignalState resolveSignalState(SpatStateResponse state) {
-        if (state == null) return SignalState.UNKNOWN;
-        boolean hasGreen = Stream.of(
-                state.getNtPdsgStatNm(), state.getEtPdsgStatNm(),
-                state.getStPdsgStatNm(), state.getWtPdsgStatNm(),
-                state.getNePdsgStatNm(), state.getSePdsgStatNm(),
-                state.getSwPdsgStatNm(), state.getNwPdsgStatNm()
-        ).anyMatch(s -> s != null && isGreenStatNm(s));
-        return hasGreen ? SignalState.GREEN : SignalState.RED;
+    private SignalState resolveSignalState(SpatStateResponse state, SpatResponse spat, String signalDirection) {
+        String status = resolveDirectionStatus(state, signalDirection);
+        if (status != null) {
+            if (status.contains("녹색")) return SignalState.GREEN;
+            if (status.contains("적색")) return SignalState.RED;
+        }
+        if (spat == null || signalDirection == null) return SignalState.UNKNOWN;
+        return resolveRemaining(spat, signalDirection) == null ? SignalState.RED : SignalState.GREEN;
     }
 
-    private boolean isGreenStatNm(String statNm) {
-        return "permissive-Movement-Allowed".equals(statNm)
-            || "protected-Movement-Allowed".equals(statNm);
-    }
-
-    private String resolveStatNm(SpatStateResponse state, String signalDirection) {
+    private String resolveDirectionStatus(SpatStateResponse state, String signalDirection) {
         if (state == null) return null;
         return switch (normalizeDirection(signalDirection)) {
             case "nt" -> state.getNtPdsgStatNm();
@@ -397,11 +441,19 @@ public class RouteService {
             case "se" -> state.getSePdsgStatNm();
             case "sw" -> state.getSwPdsgStatNm();
             case "nw" -> state.getNwPdsgStatNm();
-            default   -> null;
+            default -> null;
         };
     }
 
     private boolean isValidPdsg(Double value) {
         return value != null && value < 36001.0 && value > 0;
     }
+
+    private record ResolvedCrosswalkSignal(
+            CrosswalkInfo crosswalk,
+            String signalDirection,
+            Double remainingSeconds,
+            Double cycleSeconds,
+            SignalState signalState
+    ) {}
 }

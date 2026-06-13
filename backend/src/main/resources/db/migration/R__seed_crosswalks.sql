@@ -1,24 +1,4 @@
---
--- PostgreSQL database dump
---
-
--- Dumped from database version 16.4 (Debian 16.4-1.pgdg110+2)
--- Dumped by pg_dump version 16.4 (Debian 16.4-1.pgdg110+2)
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
---
--- Data for Name: crosswalks; Type: TABLE DATA; Schema: public; Owner: -
---
+﻿TRUNCATE TABLE public.crosswalks;
 
 COPY public.crosswalks (osm_way_id, crossing_type, source, geom, center_geom, nearest_itst_id) FROM stdin;
 634478944	marked	\N	0102000020E610000002000000D83BED3A65BA5F403AE1CA7E82C242404AE0C5B164BA5F40898A822A7FC24240	0101000020E6100000118E59F664BA5F40E2B5A6D480C24240	2304
@@ -98010,9 +97990,3 @@ COPY public.crosswalks (osm_way_id, crossing_type, source, geom, center_geom, ne
 23000067561	uncontrolled	sidewalk_connector	0102000020E61000000200000023C6C617C8BC5F408D63247B84C04240D057DAF3C6BC5F40B12BD26982C04240	0101000020E6100000FA8ED085C7BC5F409F477B7283C04240	2009
 23000067562	uncontrolled	sidewalk_connector	0102000020E61000000200000023C6C617C8BC5F40AB3A504C83C04240D057DAF3C6BC5F40B12BD26982C04240	0101000020E6100000FA8ED085C7BC5F402E3311DB82C04240	2009
 \.
-
-
---
--- PostgreSQL database dump complete
---
-
