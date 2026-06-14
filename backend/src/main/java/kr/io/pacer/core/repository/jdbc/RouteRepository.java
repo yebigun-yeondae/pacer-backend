@@ -50,6 +50,7 @@ public class RouteRepository {
                     SELECT DISTINCT ON (c.osm_way_id)
                            c.osm_way_id,
                            c.nearest_itst_id,
+                           i.name AS intersection_name,
                            ST_Y(c.center_geom) AS lat,
                            ST_X(c.center_geom) AS lng,
                            ST_LineLocatePoint(r.geom, c.center_geom) AS fraction,
@@ -83,6 +84,7 @@ public class RouteRepository {
                 ranked AS (
                     SELECT osm_way_id,
                            nearest_itst_id,
+                           intersection_name,
                            lat,
                            lng,
                            fraction,
@@ -97,6 +99,7 @@ public class RouteRepository {
                 )
                 SELECT osm_way_id,
                        nearest_itst_id,
+                       intersection_name,
                        lat,
                        lng,
                        fraction,
@@ -114,6 +117,7 @@ public class RouteRepository {
                 (rs, rowNum) -> new CrosswalkInfo(
                         rs.getLong("osm_way_id"),
                         rs.getObject("nearest_itst_id", Integer.class),
+                        rs.getString("intersection_name"),
                         rs.getDouble("lat"),
                         rs.getDouble("lng"),
                         rs.getDouble("fraction"),
@@ -126,6 +130,7 @@ public class RouteRepository {
     public record CrosswalkInfo(
             long crosswalkId,
             Integer itstId,
+            String intersectionName,
             double lat,
             double lng,
             double fraction,

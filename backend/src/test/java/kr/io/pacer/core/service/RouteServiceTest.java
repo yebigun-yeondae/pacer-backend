@@ -89,8 +89,8 @@ class RouteServiceTest {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
 
-        IntersectionInfo intersection = new IntersectionInfo(101, "테스트 교차로", 37.505, 127.005, 0.5);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.506, 127.006, 0.5, "nt", 250.0);
+        IntersectionInfo intersection = new IntersectionInfo(202, "경로 주변 교차로", 37.505, 127.005, 0.5);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.506, 127.006, 0.5, "nt", 250.0);
         CachedRoute cached = new CachedRoute("polyline", 300, 500.0, List.of(intersection), List.of(crosswalk));
 
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
@@ -120,7 +120,63 @@ class RouteServiceTest {
         assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.GREEN);
 
         assertThat(response.getIntersectionSignals()).hasSize(1);
+        assertThat(response.getIntersectionSignals().get(0).getItstId()).isEqualTo(101);
+        assertThat(response.getIntersectionSignals().get(0).getName()).isEqualTo("교차로 101");
+        assertThat(response.getIntersectionSignals().get(0).getLat()).isEqualTo(37.506);
+        assertThat(response.getIntersectionSignals().get(0).getLng()).isEqualTo(127.006);
         assertThat(response.getIntersectionSignals().get(0).getNtPdsgRmdrCs()).isEqualTo(10.0);
+    }
+
+    @Test
+    @DisplayName("경로 탐색 - 같은 교차로의 근접 중복 횡단보도는 한 신호 이벤트로 생성")
+    void findRoute_nearbyCrosswalksWithSameIntersection_createSingleSignalEvent() {
+        UUID userId = UUID.randomUUID();
+        RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
+
+        CachedRoute cached = new CachedRoute(
+                "polyline",
+                300,
+                500.0,
+                List.of(
+                        new IntersectionInfo(22300, "경로 주변 교차로 1", 37.545, 126.844, 0.8),
+                        new IntersectionInfo(2300, "경로 주변 교차로 2", 37.546, 126.845, 0.9)),
+                List.of(
+                        crosswalk(1323417845L, 2017, 37.5417, 126.8400, 0.2, "wt", 100.0),
+                        crosswalk(550970973L, 2017, 37.5418, 126.8404, 0.3, "wt", 150.0)));
+        SpatResponse spat = makeSpatResponse(null, null, null, 15.0, null, null, null, null);
+
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        given(citsSpatClient.fetchAll(List.of(2017))).willReturn(Map.of(2017, spat));
+        given(citsSpatStateClient.fetchAll(anyList())).willReturn(Map.of(
+                2017, makeSpatStateResponse(null, null, null, "permissive-Movement-Allowed", null, null, null, null)));
+        given(signalCycleRepository.findByItstIds(anyList())).willReturn(Map.of(
+                2017, Map.of("wt", signalCycle(130.07, 103.88))));
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
+        given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
+        given(aiRouteClient.selectRoute(any())).willReturn(makeAiRouteResponse("route_001"));
+        given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
+        given(historyRepository.save(any())).willReturn(null);
+
+        RouteResponse response = routeService.findRoute(req, userId);
+
+        assertThat(response.getSignalCheckpoints())
+                .extracting(RouteResponse.SignalCheckpoint::getIntersectionId)
+                .containsExactly(2017);
+        assertThat(response.getSignalCheckpoints())
+                .extracting(RouteResponse.SignalCheckpoint::getCrosswalkId)
+                .containsExactly("1323417845");
+        assertThat(response.getSignalCheckpoints())
+                .extracting(RouteResponse.SignalCheckpoint::getSignalDirection)
+                .containsExactly("wt");
+        assertThat(response.getIntersectionSignals())
+                .extracting(RouteResponse.IntersectionSignal::getItstId)
+                .containsExactly(2017);
+        assertThat(response.getIntersectionSignals())
+                .extracting(RouteResponse.IntersectionSignal::getLat)
+                .containsExactly(37.5417);
+        assertThat(response.getIntersectionSignals())
+                .extracting(RouteResponse.IntersectionSignal::getLng)
+                .containsExactly(126.8400);
     }
 
     @Test
@@ -190,7 +246,7 @@ class RouteServiceTest {
     void findRoute_aiRequest_usesCrosswalkIdAndIntersectionIdSeparately() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
@@ -230,7 +286,7 @@ class RouteServiceTest {
     void findRoute_aiRequest_usesSelectedCrosswalkSignalDirection() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "st", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "st", 120.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
         SpatResponse spat = makeSpatResponse(10.0, null, 25.0, null, null, null, null, null);
 
@@ -272,9 +328,9 @@ class RouteServiceTest {
     void findRoute_deduplicatesNearbySameIntersectionAndDirectionSignalEvents() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo firstNt = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.40, "nt", 120.0);
-        CrosswalkInfo duplicateNt = new CrosswalkInfo(9002L, 101, 37.506, 127.006, 0.43, "nt", 128.0);
-        CrosswalkInfo differentDirection = new CrosswalkInfo(9003L, 101, 37.507, 127.007, 0.50, "et", 160.0);
+        CrosswalkInfo firstNt = crosswalk(9001L, 101, 37.505, 127.005, 0.40, "nt", 120.0);
+        CrosswalkInfo duplicateNt = crosswalk(9002L, 101, 37.506, 127.006, 0.43, "nt", 128.0);
+        CrosswalkInfo differentDirection = crosswalk(9003L, 101, 37.507, 127.007, 0.50, "et", 160.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(
                 firstNt, duplicateNt, differentDirection));
         SpatResponse spat = makeSpatResponse(10.0, 20.0, null, null, null, null, null, null);
@@ -313,7 +369,7 @@ class RouteServiceTest {
     @Test
     @DisplayName("AI 요청 - 선택 방향 상태값이 없으면 signal null")
     void findRoute_aiRequest_withoutSelectedDirectionStatus_hasNullSignal() {
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
         SpatResponse spat = makeSpatResponse(null, 97.0, null, null, null, null, null, null);
 
         AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
@@ -326,9 +382,87 @@ class RouteServiceTest {
     }
 
     @Test
+    @DisplayName("경로 탐색 - 선택 방향 신호가 없어도 횡단보도는 제외하지 않는다")
+    void findRoute_withoutSelectedDirectionData_doesNotUseUnavailableDirection() {
+        UUID userId = UUID.randomUUID();
+        RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "wt", 120.0);
+        CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
+        SpatResponse spat = makeSpatResponse(null, null, null, null, 36001.0, null, null, null);
+
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse(null, null, null, null, "stop-And-Remain", null, null, null)));
+        given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
+                101, Map.of("ne", signalCycle(130.07, 103.88))));
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
+        given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
+        given(aiRouteClient.selectRoute(any())).willReturn(makeAiRouteResponse("route_001"));
+        given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
+        given(historyRepository.save(any())).willReturn(null);
+
+        RouteResponse response = routeService.findRoute(req, userId);
+
+        assertThat(response.getSignalCheckpoints()).hasSize(1);
+        RouteResponse.SignalCheckpoint checkpoint = response.getSignalCheckpoints().get(0);
+        assertThat(checkpoint.getCrosswalkId()).isEqualTo("9001");
+        assertThat(checkpoint.getIntersectionId()).isEqualTo(101);
+        assertThat(checkpoint.getSignalDirection()).isNull();
+        assertThat(checkpoint.getRemainingSeconds()).isNull();
+        assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.UNKNOWN);
+        assertThat(response.getIntersectionSignals()).hasSize(1);
+
+        ArgumentCaptor<AiRouteRequest> captor = ArgumentCaptor.forClass(AiRouteRequest.class);
+        then(aiRouteClient).should().selectRoute(captor.capture());
+        List<AiRouteRequest.Crosswalk> payload = captor.getValue().getRouteCandidates().get(0).getCrosswalks();
+        assertThat(payload).hasSize(1);
+        assertThat(payload.get(0).getCrosswalkId()).isEqualTo("9001");
+        assertThat(payload.get(0).getIntersectionId()).isEqualTo(101);
+        assertThat(payload.get(0).getSignal()).isNull();
+    }
+
+    @Test
+    @DisplayName("경로 탐색 - C-ITS 장애로 방향을 확정할 수 없어도 횡단보도는 제외하지 않는다")
+    void findRoute_citsFailureKeepsCrosswalkWithNullSignal() {
+        UUID userId = UUID.randomUUID();
+        RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "wt", 120.0);
+        CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
+
+        given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
+        given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of());
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
+        given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
+        given(aiRouteClient.selectRoute(any())).willReturn(makeAiRouteResponse("route_001"));
+        given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
+        given(historyRepository.save(any())).willReturn(null);
+
+        RouteResponse response = routeService.findRoute(req, userId);
+
+        assertThat(response.getSignalCheckpoints()).hasSize(1);
+        RouteResponse.SignalCheckpoint checkpoint = response.getSignalCheckpoints().get(0);
+        assertThat(checkpoint.getCrosswalkId()).isEqualTo("9001");
+        assertThat(checkpoint.getIntersectionId()).isEqualTo(101);
+        assertThat(checkpoint.getSignalDirection()).isNull();
+        assertThat(checkpoint.getRemainingSeconds()).isNull();
+        assertThat(checkpoint.getSignalState()).isEqualTo(SignalState.UNKNOWN);
+
+        ArgumentCaptor<AiRouteRequest> captor = ArgumentCaptor.forClass(AiRouteRequest.class);
+        then(aiRouteClient).should().selectRoute(captor.capture());
+        List<AiRouteRequest.Crosswalk> payload = captor.getValue().getRouteCandidates().get(0).getCrosswalks();
+        assertThat(payload).hasSize(1);
+        assertThat(payload.get(0).getCrosswalkId()).isEqualTo("9001");
+        assertThat(payload.get(0).getIntersectionId()).isEqualTo(101);
+        assertThat(payload.get(0).getSignal()).isNull();
+    }
+
+    @Test
     @DisplayName("AI 요청 - 선택 방향 정지 상태는 red phase로 전달")
     void findRoute_aiRequest_redSelectedDirectionStatus_hasRedPhase() {
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
         SpatResponse spat = makeSpatResponse(null, 97.0, null, null, null, null, null, null);
 
         AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
@@ -346,7 +480,7 @@ class RouteServiceTest {
     @Test
     @DisplayName("AI 요청 - 대각 방향은 매핑 가능한 인접 직교 방향이 하나면 보정")
     void findRoute_aiRequest_diagonalDirection_usesSingleUsableAdjacentDirection() {
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
         AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
@@ -366,10 +500,10 @@ class RouteServiceTest {
     @Test
     @DisplayName("AI 요청 - 대각 방향의 인접 직교 방향이 둘 다 유효하면 signal null")
     void findRoute_aiRequest_diagonalDirection_withAmbiguousAdjacentDirections_hasNullSignal() {
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, 20.0, null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+        List<AiRouteRequest.Crosswalk> payload = findRouteAndCaptureCrosswalks(
                 crosswalk,
                 spat,
                 makeSpatStateResponse(null, null, null, "permissive-Movement-Allowed",
@@ -378,13 +512,14 @@ class RouteServiceTest {
                         "nt", signalCycle(30.0, 60.0),
                         "wt", signalCycle(40.0, 80.0)));
 
-        assertThat(payload.getSignal()).isNull();
+        assertThat(payload).hasSize(1);
+        assertThat(payload.get(0).getSignal()).isNull();
     }
 
     @Test
     @DisplayName("AI 요청 - 36001 잔여시간은 대각 방향 보정 후보에서 제외")
     void findRoute_aiRequest_diagonalDirection_ignoresInvalidRemainingTime() {
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(36001.0, null, null, 20.0, null, null, null, null);
 
         AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
@@ -407,7 +542,7 @@ class RouteServiceTest {
     void findRoute_aiRequest_withoutCycle_hasNullSignal() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
@@ -436,7 +571,7 @@ class RouteServiceTest {
     void findRoute_aiRequest_withoutRemainingSeconds_hasNullSignal() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9001L, 101, 37.505, 127.005, 0.4, "nt", 120.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
         SpatResponse spat = makeSpatResponse(null, null, null, null, null, null, null, null);
 
@@ -469,7 +604,7 @@ class RouteServiceTest {
     void findRoute_aiRequest_crosswalkWithoutIntersection_hasNullSignal() {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
-        CrosswalkInfo crosswalk = new CrosswalkInfo(9002L, null, 37.505, 127.005, 0.4, null, 120.0);
+        CrosswalkInfo crosswalk = crosswalk(9002L, null, 37.505, 127.005, 0.4, null, 120.0);
         CachedRoute cached = new CachedRoute("polyline", 200, 300.0, List.of(), List.of(crosswalk));
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
@@ -479,21 +614,34 @@ class RouteServiceTest {
         given(userRepository.getReferenceById(userId)).willReturn(User.of("user", "u@t.com", null));
         given(historyRepository.save(any())).willReturn(null);
 
-        routeService.findRoute(req, userId);
+        RouteResponse response = routeService.findRoute(req, userId);
 
         ArgumentCaptor<AiRouteRequest> captor = ArgumentCaptor.forClass(AiRouteRequest.class);
         then(aiRouteClient).should().selectRoute(captor.capture());
-        AiRouteRequest.Crosswalk payload = captor.getValue().getRouteCandidates().get(0).getCrosswalks().get(0);
 
-        assertThat(payload.getCrosswalkId()).isEqualTo("9002");
-        assertThat(payload.getIntersectionId()).isNull();
-        assertThat(payload.getSignal()).isNull();
+        assertThat(response.getSignalCheckpoints()).hasSize(1);
+        assertThat(response.getSignalCheckpoints().get(0).getCrosswalkId()).isEqualTo("9002");
+        assertThat(response.getSignalCheckpoints().get(0).getIntersectionId()).isNull();
+        assertThat(response.getSignalCheckpoints().get(0).getSignalState()).isEqualTo(SignalState.UNKNOWN);
+        List<AiRouteRequest.Crosswalk> payload = captor.getValue().getRouteCandidates().get(0).getCrosswalks();
+        assertThat(payload).hasSize(1);
+        assertThat(payload.get(0).getCrosswalkId()).isEqualTo("9002");
+        assertThat(payload.get(0).getIntersectionId()).isNull();
+        assertThat(payload.get(0).getSignal()).isNull();
         then(citsSpatClient).should(never()).fetchAll(anyList());
     }
 
     // ── 헬퍼 ──────────────────────────────────────────────────────────────────
 
     private AiRouteRequest.Crosswalk findRouteAndCaptureSingleCrosswalk(
+            CrosswalkInfo crosswalk,
+            SpatResponse spat,
+            SpatStateResponse state,
+            Map<String, RouteResponse.SignalCycle> cycles) {
+        return findRouteAndCaptureCrosswalks(crosswalk, spat, state, cycles).get(0);
+    }
+
+    private List<AiRouteRequest.Crosswalk> findRouteAndCaptureCrosswalks(
             CrosswalkInfo crosswalk,
             SpatResponse spat,
             SpatStateResponse state,
@@ -516,7 +664,26 @@ class RouteServiceTest {
 
         ArgumentCaptor<AiRouteRequest> captor = ArgumentCaptor.forClass(AiRouteRequest.class);
         then(aiRouteClient).should().selectRoute(captor.capture());
-        return captor.getValue().getRouteCandidates().get(0).getCrosswalks().get(0);
+        return captor.getValue().getRouteCandidates().get(0).getCrosswalks();
+    }
+
+    private CrosswalkInfo crosswalk(
+            long crosswalkId,
+            Integer itstId,
+            double lat,
+            double lng,
+            double fraction,
+            String signalDirection,
+            double distanceFromStart) {
+        return new CrosswalkInfo(
+                crosswalkId,
+                itstId,
+                itstId == null ? null : "교차로 " + itstId,
+                lat,
+                lng,
+                fraction,
+                signalDirection,
+                distanceFromStart);
     }
 
     private RouteResponse.SignalCycle signalCycle(Double redMaxSec, Double greenMaxSec) {
