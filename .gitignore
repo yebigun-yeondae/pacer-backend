@@ -5,7 +5,6 @@ pacer_map_data/
 CLAUDE.md
 .idea/
 .DS_Store
-docs/
 *.log
 logs/
 backend/src/main/resources/application-local.yml
