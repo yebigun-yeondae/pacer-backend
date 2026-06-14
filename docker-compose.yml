@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 2. Redis ---
   redis:
@@ -36,7 +36,7 @@ services:
       timeout: 3s
       retries: 10
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 3. 백엔드 1 ---
   backend1:
@@ -59,7 +59,7 @@ services:
         condition: service_started
     restart: unless-stopped
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 4. 백엔드 2 ---
   backend2:
@@ -82,7 +82,7 @@ services:
         condition: service_started
     restart: unless-stopped
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 5. Nginx ---
   nginx:
@@ -99,9 +99,9 @@ services:
       - backend1
       - backend2
     restart: unless-stopped
-    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    command: '/bin/sh -c ''while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'''
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 6. Certbot ---
   certbot:
@@ -124,9 +124,9 @@ services:
     ports:
       - "9090:9090"
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - "--config.file=/etc/prometheus/prometheus.yml"
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 8. Grafana ---
   grafana:
@@ -138,12 +138,13 @@ services:
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_SERVER_PROTOCOL=http
       - GF_SERVER_ENFORCE_DOMAIN=false
+      - TZ=Asia/Seoul
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
-        - pacer-network
+      - pacer-network
 
   # --- 9. Valhalla ---
   valhalla:
@@ -158,8 +159,7 @@ services:
       - use_tiles_ignore_pbf=False
     restart: always
     networks:
-        - pacer-network
-
+      - pacer-network
 
 volumes:
   pg_data:
@@ -167,5 +167,5 @@ volumes:
   grafana_data:
 
 networks:
-    pacer-network:
-      external: true
+  pacer-network:
+    external: true
