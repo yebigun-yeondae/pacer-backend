@@ -99,7 +99,7 @@ public class RouteService {
 
         itstIds.stream()
                 .filter(id -> !spatMap.containsKey(id))
-                .forEach(id -> log.warn("[CITS] 신호 데이터 누락 itstId={}", id));
+                .forEach(id -> log.debug("[CITS] 신호 데이터 누락 itstId={}", id));
 
         CachedRoute selected = selectRouteViaAi(userId, candidates, spatMap, stateMap, cycleMap);
         List<ResolvedCrosswalkSignal> selectedSignals = resolveCrosswalkSignals(
