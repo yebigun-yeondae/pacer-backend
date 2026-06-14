@@ -15,7 +15,6 @@ import kr.io.pacer.core.dto.response.RouteHistoryResponse;
 import kr.io.pacer.core.dto.response.RouteResponse;
 import kr.io.pacer.core.dto.response.RouteResponse.SignalCycle;
 import kr.io.pacer.core.repository.jdbc.RouteRepository.CrosswalkInfo;
-import kr.io.pacer.core.repository.jdbc.RouteRepository.IntersectionInfo;
 import kr.io.pacer.core.repository.jdbc.SignalCycleRepository;
 import kr.io.pacer.core.repository.jpa.PedestrianProfileRepository;
 import kr.io.pacer.core.repository.jpa.RouteHistoryRepository;
@@ -29,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,7 +36,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -44,7 +43,7 @@ import java.util.stream.Stream;
 public class RouteService {
 
     private static final double DEFAULT_SPEED_STD = 0.2;
-    private static final double DUPLICATE_SIGNAL_EVENT_DISTANCE_M = 30.0;
+    private static final double DUPLICATE_SIGNAL_EVENT_DISTANCE_M = 60.0;
 
     private final RouteGeometryService routeGeometryService;
     private final CitsSpatClient citsSpatClient;
@@ -74,9 +73,7 @@ public class RouteService {
         List<CachedRoute> candidates = routeGeometryService.fetchAll(req, userId);
 
         List<Integer> itstIds = candidates.stream()
-                .flatMap(r -> Stream.concat(
-                        r.intersections().stream().map(IntersectionInfo::itstId),
-                        r.crosswalks().stream().map(CrosswalkInfo::itstId)))
+                .flatMap(r -> r.crosswalks().stream().map(CrosswalkInfo::itstId))
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
@@ -106,7 +103,7 @@ public class RouteService {
                 selected.crosswalks(), spatMap, stateMap, cycleMap);
 
         List<RouteResponse.SignalCheckpoint> checkpoints = buildCheckpoints(selectedSignals, selected.totalTimeSec());
-        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(selected.intersections(), spatMap, stateMap, cycleMap);
+        List<RouteResponse.IntersectionSignal> intersectionSignals = buildIntersectionSignals(selectedSignals, spatMap, stateMap, cycleMap);
 
         int signalStops = (int) checkpoints.stream()
                 .filter(c -> c.getSignalState() == SignalState.RED).count();
@@ -328,9 +325,10 @@ public class RouteService {
         String previousDirection = normalizeDirection(previous.signalDirection());
         String currentDirection = normalizeDirection(current.signalDirection());
         if (previousItstId == null || currentItstId == null) return false;
-        if (previousDirection.isBlank() || currentDirection.isBlank()) return false;
         if (!previousItstId.equals(currentItstId)) return false;
-        if (!previousDirection.equals(currentDirection)) return false;
+        if (!previousDirection.isBlank() || !currentDirection.isBlank()) {
+            if (!previousDirection.equals(currentDirection)) return false;
+        }
         double distanceDelta = Math.abs(previous.crosswalk().distanceFromStart() - current.crosswalk().distanceFromStart());
         return distanceDelta <= DUPLICATE_SIGNAL_EVENT_DISTANCE_M;
     }
@@ -363,7 +361,6 @@ public class RouteService {
             SpatResponse spat,
             SpatStateResponse state,
             List<String> directionCandidates) {
-        if (directionCandidates.size() == 1) return directionCandidates.get(0);
         List<String> usableDirections = directionCandidates.stream()
                 .filter(direction -> resolveRemaining(spat, direction) != null
                         || resolveDirectionStatus(state, direction) != null)
@@ -372,23 +369,31 @@ public class RouteService {
     }
 
     private List<RouteResponse.IntersectionSignal> buildIntersectionSignals(
-            List<IntersectionInfo> intersections,
+            List<ResolvedCrosswalkSignal> crosswalkSignals,
             Map<Integer, SpatResponse> spatMap,
             Map<Integer, SpatStateResponse> stateMap,
             Map<Integer, Map<String, SignalCycle>> cycleMap) {
 
-        return IntStream.range(0, intersections.size())
+        Map<Integer, ResolvedCrosswalkSignal> signalsByItstId = new LinkedHashMap<>();
+        for (ResolvedCrosswalkSignal signal : crosswalkSignals) {
+            Integer itstId = signal.crosswalk().itstId();
+            if (itstId != null) signalsByItstId.putIfAbsent(itstId, signal);
+        }
+        List<ResolvedCrosswalkSignal> uniqueSignals = new ArrayList<>(signalsByItstId.values());
+
+        return IntStream.range(0, uniqueSignals.size())
                 .mapToObj(idx -> {
-                    IntersectionInfo i = intersections.get(idx);
+                    CrosswalkInfo crosswalk = uniqueSignals.get(idx).crosswalk();
+                    Integer itstId = crosswalk.itstId();
                     RouteResponse.IntersectionSignal.IntersectionSignalBuilder builder =
                             RouteResponse.IntersectionSignal.builder()
                                     .order(idx + 1)
-                                    .itstId(i.itstId())
-                                    .name(i.name())
-                                    .lat(i.lat())
-                                    .lng(i.lng());
+                                    .itstId(itstId)
+                                    .name(crosswalk.intersectionName())
+                                    .lat(crosswalk.lat())
+                                    .lng(crosswalk.lng());
 
-                    SpatResponse spat = spatMap.get(i.itstId());
+                    SpatResponse spat = spatMap.get(itstId);
                     if (spat != null) {
                         builder.ntPdsgRmdrCs(spat.getNtPdsgRmdrCs())
                                .etPdsgRmdrCs(spat.getEtPdsgRmdrCs())
@@ -400,7 +405,7 @@ public class RouteService {
                                .nwPdsgRmdrCs(spat.getNwPdsgRmdrCs());
                     }
 
-                    SpatStateResponse state = stateMap.get(i.itstId());
+                    SpatStateResponse state = stateMap.get(itstId);
                     if (state != null) {
                         builder.ntPdsgStatNm(state.getNtPdsgStatNm())
                                .etPdsgStatNm(state.getEtPdsgStatNm())
@@ -412,7 +417,7 @@ public class RouteService {
                                .nwPdsgStatNm(state.getNwPdsgStatNm());
                     }
 
-                    Map<String, SignalCycle> cycles = cycleMap.get(i.itstId());
+                    Map<String, SignalCycle> cycles = cycleMap.get(itstId);
                     if (cycles != null) {
                         builder.signalCycles(cycles);
                     }
