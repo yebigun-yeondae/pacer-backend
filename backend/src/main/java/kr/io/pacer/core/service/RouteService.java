@@ -99,7 +99,7 @@ public class RouteService {
 
         itstIds.stream()
                 .filter(id -> !spatMap.containsKey(id))
-                .forEach(id -> log.warn("[CITS] 신호 데이터 누락 itstId={}", id));
+                .forEach(id -> log.debug("[CITS] 신호 데이터 누락 itstId={}", id));
 
         CachedRoute selected = selectRouteViaAi(userId, candidates, spatMap, stateMap, cycleMap);
         List<ResolvedCrosswalkSignal> selectedSignals = resolveCrosswalkSignals(
@@ -180,7 +180,9 @@ public class RouteService {
                     .map(crosswalkSignal -> {
                         CrosswalkInfo crosswalk = crosswalkSignal.crosswalk();
                         AiRouteRequest.Signal signal = buildAiSignal(
-                                crosswalkSignal.remainingSeconds(), crosswalkSignal.cycleSeconds());
+                                crosswalkSignal.signalPhase(),
+                                crosswalkSignal.remainingSeconds(),
+                                crosswalkSignal.cycleSeconds());
                         log.debug("[AI-CROSSWALK] routeId={} crosswalkId={} intersectionId={} rawDirection={} "
                                         + "resolvedDirection={} distance={} remaining={} cycle={} signal={}",
                                 routeId,
@@ -221,8 +223,7 @@ public class RouteService {
                 .build();
     }
 
-    private AiRouteRequest.Signal buildAiSignal(Double remainingSeconds, Double cycleSeconds) {
-        String phase = remainingSeconds == null ? null : "green";
+    private AiRouteRequest.Signal buildAiSignal(String phase, Double remainingSeconds, Double cycleSeconds) {
         if (phase == null || remainingSeconds == null || cycleSeconds == null) return null;
         return AiRouteRequest.Signal.builder()
                 .phase(phase)
@@ -305,8 +306,9 @@ public class RouteService {
         Double remainingSeconds = resolveRemaining(spat, signalDirection);
         Double cycleSeconds = resolveCycle(cycles, signalDirection);
         SignalState signalState = resolveSignalState(state, spat, signalDirection);
+        String signalPhase = resolveSignalPhase(state, signalDirection);
         return new ResolvedCrosswalkSignal(
-                crosswalk, signalDirection, remainingSeconds, cycleSeconds, signalState);
+                crosswalk, signalDirection, remainingSeconds, cycleSeconds, signalState, signalPhase);
     }
 
     private List<ResolvedCrosswalkSignal> deduplicateSignalEvents(List<ResolvedCrosswalkSignal> signals) {
@@ -430,6 +432,13 @@ public class RouteService {
         return resolveRemaining(spat, signalDirection) == null ? SignalState.RED : SignalState.GREEN;
     }
 
+    private String resolveSignalPhase(SpatStateResponse state, String signalDirection) {
+        String status = resolveDirectionStatus(state, signalDirection);
+        if (isGreenStatus(status)) return "green";
+        if (isRedStatus(status)) return "red";
+        return null;
+    }
+
     private boolean isGreenStatus(String status) {
         return "permissive-Movement-Allowed".equals(status)
             || "protected-Movement-Allowed".equals(status);
@@ -464,6 +473,7 @@ public class RouteService {
             String signalDirection,
             Double remainingSeconds,
             Double cycleSeconds,
-            SignalState signalState
+            SignalState signalState,
+            String signalPhase
     ) {}
 }

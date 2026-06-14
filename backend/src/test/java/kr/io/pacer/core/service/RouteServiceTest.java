@@ -196,7 +196,8 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse("permissive-Movement-Allowed", null, null, null, null, null, null, null)));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of("nt", RouteResponse.SignalCycle.builder()
                         .redMaxSec(30.0)
@@ -218,6 +219,7 @@ class RouteServiceTest {
         assertThat(payload.getIntersectionId()).isEqualTo(101);
         assertThat(payload.getDistanceFromStart()).isCloseTo(120.0, within(0.001));
         assertThat(payload.getSignal()).isNotNull();
+        assertThat(payload.getSignal().getPhase()).isEqualTo("green");
         assertThat(payload.getSignal().getRemainingSeconds()).isEqualTo(10.0);
         assertThat(payload.getSignal().getCycleSeconds()).isEqualTo(90.0);
         then(citsSpatClient).should().fetchAll(List.of(101));
@@ -234,7 +236,9 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse("permissive-Movement-Allowed", null, "permissive-Movement-Allowed", null,
+                        null, null, null, null)));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of(
                         "nt", RouteResponse.SignalCycle.builder()
@@ -258,6 +262,7 @@ class RouteServiceTest {
         AiRouteRequest.Crosswalk payload = captor.getValue().getRouteCandidates().get(0).getCrosswalks().get(0);
 
         assertThat(payload.getSignal()).isNotNull();
+        assertThat(payload.getSignal().getPhase()).isEqualTo("green");
         assertThat(payload.getSignal().getRemainingSeconds()).isEqualTo(25.0);
         assertThat(payload.getSignal().getCycleSeconds()).isEqualTo(120.0);
     }
@@ -276,7 +281,9 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse("permissive-Movement-Allowed", "permissive-Movement-Allowed",
+                        null, null, null, null, null, null)));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of(
                         "nt", signalCycle(30.0, 60.0),
@@ -304,16 +311,54 @@ class RouteServiceTest {
     }
 
     @Test
+    @DisplayName("AI 요청 - 선택 방향 상태값이 없으면 signal null")
+    void findRoute_aiRequest_withoutSelectedDirectionStatus_hasNullSignal() {
+        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
+        SpatResponse spat = makeSpatResponse(null, 97.0, null, null, null, null, null, null);
+
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+                crosswalk,
+                spat,
+                makeSpatStateResponse(null, null, null, null, null, null, null, null),
+                Map.of("et", signalCycle(606.98, 115.01)));
+
+        assertThat(payload.getSignal()).isNull();
+    }
+
+    @Test
+    @DisplayName("AI 요청 - 선택 방향 정지 상태는 red phase로 전달")
+    void findRoute_aiRequest_redSelectedDirectionStatus_hasRedPhase() {
+        CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "et", 120.0);
+        SpatResponse spat = makeSpatResponse(null, 97.0, null, null, null, null, null, null);
+
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+                crosswalk,
+                spat,
+                makeSpatStateResponse(null, "stop-And-Remain", null, null, null, null, null, null),
+                Map.of("et", signalCycle(606.98, 115.01)));
+
+        assertThat(payload.getSignal()).isNotNull();
+        assertThat(payload.getSignal().getPhase()).isEqualTo("red");
+        assertThat(payload.getSignal().getRemainingSeconds()).isEqualTo(97.0);
+        assertThat(payload.getSignal().getCycleSeconds()).isEqualTo(721.99);
+    }
+
+    @Test
     @DisplayName("AI 요청 - 대각 방향은 매핑 가능한 인접 직교 방향이 하나면 보정")
     void findRoute_aiRequest_diagonalDirection_usesSingleUsableAdjacentDirection() {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, null, null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
-                "nt", signalCycle(30.0, 60.0),
-                "wt", signalCycle(40.0, 80.0)));
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+                crosswalk,
+                spat,
+                makeSpatStateResponse("permissive-Movement-Allowed", null, null, null, null, null, null, null),
+                Map.of(
+                        "nt", signalCycle(30.0, 60.0),
+                        "wt", signalCycle(40.0, 80.0)));
 
         assertThat(payload.getSignal()).isNotNull();
+        assertThat(payload.getSignal().getPhase()).isEqualTo("green");
         assertThat(payload.getSignal().getRemainingSeconds()).isEqualTo(10.0);
         assertThat(payload.getSignal().getCycleSeconds()).isEqualTo(90.0);
     }
@@ -324,9 +369,14 @@ class RouteServiceTest {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(10.0, null, null, 20.0, null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
-                "nt", signalCycle(30.0, 60.0),
-                "wt", signalCycle(40.0, 80.0)));
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+                crosswalk,
+                spat,
+                makeSpatStateResponse(null, null, null, "permissive-Movement-Allowed",
+                        null, null, null, null),
+                Map.of(
+                        "nt", signalCycle(30.0, 60.0),
+                        "wt", signalCycle(40.0, 80.0)));
 
         assertThat(payload.getSignal()).isNull();
     }
@@ -337,11 +387,17 @@ class RouteServiceTest {
         CrosswalkInfo crosswalk = new CrosswalkInfo(9001L, 101, 37.505, 127.005, 0.4, "nw", 120.0);
         SpatResponse spat = makeSpatResponse(36001.0, null, null, 20.0, null, null, null, null);
 
-        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(crosswalk, spat, Map.of(
-                "nt", signalCycle(30.0, 60.0),
-                "wt", signalCycle(40.0, 80.0)));
+        AiRouteRequest.Crosswalk payload = findRouteAndCaptureSingleCrosswalk(
+                crosswalk,
+                spat,
+                makeSpatStateResponse(null, null, null, "permissive-Movement-Allowed",
+                        null, null, null, null),
+                Map.of(
+                        "nt", signalCycle(30.0, 60.0),
+                        "wt", signalCycle(40.0, 80.0)));
 
         assertThat(payload.getSignal()).isNotNull();
+        assertThat(payload.getSignal().getPhase()).isEqualTo("green");
         assertThat(payload.getSignal().getRemainingSeconds()).isEqualTo(20.0);
         assertThat(payload.getSignal().getCycleSeconds()).isEqualTo(120.0);
     }
@@ -357,7 +413,8 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse("permissive-Movement-Allowed", null, null, null, null, null, null, null)));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of());
         given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
         given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
@@ -385,7 +442,8 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(
+                101, makeSpatStateResponse("permissive-Movement-Allowed", null, null, null, null, null, null, null)));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(
                 101, Map.of("nt", RouteResponse.SignalCycle.builder()
                         .redMaxSec(30.0)
@@ -438,6 +496,7 @@ class RouteServiceTest {
     private AiRouteRequest.Crosswalk findRouteAndCaptureSingleCrosswalk(
             CrosswalkInfo crosswalk,
             SpatResponse spat,
+            SpatStateResponse state,
             Map<String, RouteResponse.SignalCycle> cycles) {
         UUID userId = UUID.randomUUID();
         RouteRequest req = makeRouteRequest(37.5, 127.0, 37.51, 127.01);
@@ -445,7 +504,7 @@ class RouteServiceTest {
 
         given(routeGeometryService.fetchAll(req, userId)).willReturn(List.of(cached));
         given(citsSpatClient.fetchAll(List.of(101))).willReturn(Map.of(101, spat));
-        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of());
+        given(citsSpatStateClient.fetchAll(List.of(101))).willReturn(Map.of(101, state));
         given(signalCycleRepository.findByItstIds(List.of(101))).willReturn(Map.of(101, cycles));
         given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
         given(polylineEncoder.decode("polyline")).willReturn(List.of(new double[]{37.5, 127.0}, new double[]{37.51, 127.01}));
