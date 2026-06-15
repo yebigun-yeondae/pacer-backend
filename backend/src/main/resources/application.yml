@@ -4,7 +4,9 @@ spring:
   profiles:
     active: dev
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
   flyway:
     enabled: true
     baseline-on-migrate: true
