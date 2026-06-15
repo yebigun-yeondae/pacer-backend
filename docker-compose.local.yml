@@ -12,7 +12,7 @@ services:
       - pg_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./intersections.csv:/docker-entrypoint-initdb.d/intersections.csv
-      - ./crosswalks.sql:/docker-entrypoint-initdb.d/seed_crosswalks.sql
+      - ./backend/src/main/resources/db/seed/R__seed_crosswalks.sql:/docker-entrypoint-initdb.d/seed_crosswalks.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
       interval: 5s

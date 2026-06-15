@@ -26,6 +26,10 @@ spring:
 ai:
   api-url: http://localhost:8000
 
+subway:
+  api-key: ${SUBWAY_API_KEY:local-dev-subway-api-key}
+  arrival-api-key: ${SUBWAY_ARRIVAL_API_KEY:local-dev-subway-arrival-api-key}
+
 # cits:
 #   state-api-url: http://localhost:8080
 #   spbi:
